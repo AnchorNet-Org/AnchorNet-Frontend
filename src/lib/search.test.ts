@@ -16,6 +16,11 @@ describe("matchesQuery", () => {
     expect(matchesQuery(["Alpha Anchor"], "  alpha  ")).toBe(true);
   });
 
+  it("normalizes repeated internal whitespace in the query", () => {
+    expect(matchesQuery(["Alpha Anchor"], "alpha    anchor")).toBe(true);
+    expect(matchesQuery(["Alpha   Anchor"], "alpha anchor")).toBe(true);
+  });
+
   it("returns false when no field contains the query", () => {
     expect(matchesQuery(["Alpha Anchor", "USDC"], "bravo")).toBe(false);
   });
