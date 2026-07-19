@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  markConfirmDialogClosed,
+  markConfirmDialogOpen,
+} from "./confirmDialogOpenState";
 
 /** A modal dialog gating a destructive action behind an explicit confirm step. */
 export function ConfirmDialog({
@@ -22,6 +26,13 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    markConfirmDialogOpen();
+    return () => markConfirmDialogClosed();
+  }, [open]);
 
   // Escape dismisses the dialog, and the cancel button (the non-destructive
   // choice) receives focus on open so a stray Enter keypress can't confirm.
