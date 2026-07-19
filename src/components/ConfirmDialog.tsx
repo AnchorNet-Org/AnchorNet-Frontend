@@ -79,6 +79,12 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onCancel();
+              }
+            }}
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
           >
             {cancelLabel}
@@ -87,6 +93,12 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onConfirm();
+              }
+            }}
             className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
           >
             {confirmLabel}
