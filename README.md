@@ -119,6 +119,19 @@ like `Spinner`/`StatCard`/`EmptyState`/`RouteError`) is covered with
 [React Testing Library](https://testing-library.com/react) under a jsdom
 environment. Lint and build are separate CI steps.
 
+### Running Tests
+
+- **Run all tests:** `npm test`
+- **Run a single test file:** `npm test -- src/components/AnchorForm.test.tsx`
+- **Run in watch mode:** `npm test -- --watch` (re-runs tests on file changes)
+- **Run in watch mode for a single file:** `npm test -- src/components/AnchorForm.test.tsx --watch`
+
+### Coverage
+
+- **Generate coverage report:** `npm test -- --coverage`
+
+**Note:** No coverage threshold is currently enforced in CI or package.json. The project follows a guideline of maintaining ~95% test coverage across the codebase.
+
 ## Scripts
 
 | Command | Description |
