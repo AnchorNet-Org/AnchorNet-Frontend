@@ -13,12 +13,15 @@ export type AsyncState<T> =
  * The loader is expected to be behaviourally stable; re-running is driven by
  * `reload`, which also surfaces a loading state.
  */
-export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>): {
+export function useAsync<T>(
+  load: (signal: AbortSignal) => Promise<T>,
+  initialState: AsyncState<T> = { status: "loading" },
+): {
   state: AsyncState<T>;
   reload: () => void;
   refresh: () => void;
 } {
-  const [state, setState] = useState<AsyncState<T>>({ status: "loading" });
+  const [state, setState] = useState<AsyncState<T>>(initialState);
   const [nonce, setNonce] = useState(0);
 
   // `reload` re-fetches and shows a loading state; `refresh` re-fetches

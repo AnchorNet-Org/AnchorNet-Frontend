@@ -7,6 +7,7 @@ import {
   executeSettlement,
   cancelSettlement,
 } from "@/lib/settlementsApi";
+import { Settlement } from "@/lib/types";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { formatAmount } from "@/lib/format";
@@ -17,12 +18,21 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { CopyButton } from "./CopyButton";
 
 /** Full-record view of a single settlement, with execute/cancel actions. */
-export function SettlementDetail({ id }: { id: number }) {
+export function SettlementDetail({
+  id,
+  initialData,
+}: {
+  id: number;
+  initialData?: Settlement;
+}) {
   const load = useCallback(
     (signal: AbortSignal) => fetchSettlement(id, signal),
     [id],
   );
-  const { state, reload } = useAsync(load);
+  const { state, reload } = useAsync(
+    load,
+    initialData ? { status: "ready", data: initialData } : undefined,
+  );
   const { notify } = useToast();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
