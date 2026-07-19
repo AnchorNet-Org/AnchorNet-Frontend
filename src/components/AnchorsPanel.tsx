@@ -16,6 +16,7 @@ import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
 import { AnchorTable } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -119,9 +120,14 @@ export function AnchorsPanel() {
               </div>
             ) : null}
             {filteredAnchors.length === 0 && state.data.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No anchors match this filter.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No anchors match your search or filter."
+                onClearFilters={() => {
+                  setFilter("all");
+                  setQuery("");
+                }}
+              />
             ) : (
               <AnchorTable
                 anchors={filteredAnchors}

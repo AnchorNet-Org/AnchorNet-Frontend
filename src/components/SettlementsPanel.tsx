@@ -17,6 +17,7 @@ import { TableSkeleton } from "./TableSkeleton";
 import { SettlementForm } from "./SettlementForm";
 import { SettlementTable } from "./SettlementTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 /** Selectable page sizes for the settlements list; the first is the default. */
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -167,9 +168,11 @@ export function SettlementsPanel() {
               </div>
             ) : null}
             {visibleSettlements.length === 0 && state.settlements.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No settlements match your search.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No settlements match your search."
+                onClearFilters={() => setQuery("")}
+              />
             ) : (
               <SettlementTable
                 settlements={visibleSettlements}
