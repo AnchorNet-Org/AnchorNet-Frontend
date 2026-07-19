@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchPools, requestQuote, apiRequest, ApiRequestError } from "./api";
+import { fetchPools, requestQuote, apiRequest, ApiRequestError, isAbortError } from "./api";
 
 function mockFetch(status: number, body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -91,5 +91,55 @@ describe("requestQuote", () => {
     await expect(
       requestQuote({ asset: "USDC", amount: 999999 }),
     ).rejects.toMatchObject({ code: "INSUFFICIENT_LIQUIDITY" });
+  });
+});
+
+describe("isAbortError", () => {
+  it("returns true for a DOMException with name AbortError", () => {
+    expect(isAbortError(new DOMException("aborted", "AbortError"))).toBe(true);
+  });
+
+  it("returns false for a plain Error", () => {
+    expect(isAbortError(new Error("network failure"))).toBe(false);
+  });
+
+  it("returns false for an ApiRequestError", () => {
+    expect(isAbortError(new ApiRequestError(500, "INTERNAL", "boom"))).toBe(
+      false,
+    );
+  });
+
+  it("returns false for non-Error values", () => {
+    expect(isAbortError("string error")).toBe(false);
+    expect(isAbortError(null)).toBe(false);
+    expect(isAbortError(undefined)).toBe(false);
+  });
+});
+
+describe("apiRequest — abort behaviour", () => {
+  it("re-throws the AbortError when fetch is aborted mid-flight", async () => {
+    // Simulate fetch rejecting with a DOMException (AbortError) as browsers do.
+    const abortError = new DOMException("signal is aborted", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError));
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const err = await apiRequest("/x", {
+      signal: controller.signal,
+    }).catch((e: unknown) => e);
+
+    // apiRequest should surface the raw AbortError so callers can detect it
+    // with isAbortError() and suppress any user-facing error toast.
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("still throws ApiRequestError for genuine non-2xx responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(503, { error: { code: "UNAVAILABLE", message: "down" } }),
+    );
+
+    await expect(apiRequest("/x")).rejects.toBeInstanceOf(ApiRequestError);
   });
 });

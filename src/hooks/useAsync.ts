@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { isAbortError } from "@/lib/api";
 
 export type AsyncState<T> =
   | { status: "loading" }
@@ -34,7 +35,11 @@ export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>): {
     load(controller.signal)
       .then((data) => setState({ status: "ready", data }))
       .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
+        // Swallow deliberate cancellations: either the controller we own was
+        // aborted (unmount / reload) or the load function itself threw an
+        // AbortError (e.g. from an externally-supplied signal).  Neither case
+        // is a genuine failure, so we must never surface an error toast.
+        if (controller.signal.aborted || isAbortError(err)) return;
         setState({
           status: "error",
           message: err instanceof Error ? err.message : "Request failed",
