@@ -98,6 +98,40 @@ describe("SettlementsPanel", () => {
     expect(screen.queryByText("other")).not.toBeInTheDocument();
   });
 
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No settlements yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No settlements match your search."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("");
+  });
+
   it("loads more settlements and appends them", async () => {
     vi.mocked(fetchSettlements)
       .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))

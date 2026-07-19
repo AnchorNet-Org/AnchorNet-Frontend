@@ -92,6 +92,66 @@ describe("AnchorsPanel", () => {
     expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
   });
 
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No anchors registered yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.change(screen.getByLabelText("Search anchors"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No anchors match your search or filter."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No anchors registered yet."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search anchors")).toHaveValue("");
+  });
+
+  it("clears the status filter from the no-results empty state", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Inactive" }));
+    expect(
+      screen.getByText("No anchors match your search or filter."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("registers a new anchor and reloads the list", async () => {
     vi.mocked(fetchAnchors).mockResolvedValue([]);
     vi.mocked(registerAnchor).mockResolvedValue({
