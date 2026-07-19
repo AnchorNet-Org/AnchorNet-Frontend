@@ -21,6 +21,7 @@ vi.mock("@/lib/settlementsApi", () => ({
   openSettlement: vi.fn(),
   executeSettlement: vi.fn(),
   cancelSettlement: vi.fn(),
+  exportSettlementsCsv: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -184,5 +185,28 @@ describe("SettlementsPanel", () => {
       within(dialog).getByRole("button", { name: "Cancel settlement" }),
     );
     await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
+  });
+
+  it("exports settlements as CSV", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(exportSettlementsCsv).mockResolvedValue("id,anchor\n1,anchorA");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledWith({ pageSize: 10 });
+    });
+
+    // Check if the download link was created
+    expect(createObjectURL).toHaveBeenCalled();
   });
 });
