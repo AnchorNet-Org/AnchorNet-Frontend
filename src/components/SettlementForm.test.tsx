@@ -66,4 +66,63 @@ describe("SettlementForm", () => {
     });
     expect(screen.queryByText("Anchor id is required.")).not.toBeInTheDocument();
   });
+
+  it("clears all field values, errors, and focuses the anchor field after reset", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} />);
+
+    const anchorInput = screen.getByPlaceholderText("Anchor id");
+    const assetInput = screen.getByPlaceholderText("Asset");
+    const amountInput = screen.getByPlaceholderText("Amount");
+
+    // Fill in invalid/partial data and attempt to submit to trigger all errors.
+    fireEvent.change(assetInput, { target: { value: "" } });
+    fireEvent.change(amountInput, { target: { value: "-5" } });
+    fireEvent.click(screen.getByText("Open settlement"));
+
+    // Confirm errors are shown and onSubmit was not called.
+    expect(screen.getByText("Anchor id is required.")).toBeInTheDocument();
+    expect(screen.getByText("Asset is required.")).toBeInTheDocument();
+    expect(screen.getByText("Amount must be greater than zero.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Also put some text into anchor to make the reset more meaningful.
+    fireEvent.change(anchorInput, { target: { value: "partial-anchor" } });
+    fireEvent.change(assetInput, { target: { value: "BTC" } });
+
+    // Click Reset.
+    fireEvent.click(screen.getByText("Reset"));
+
+    // All field values must be cleared / restored to initial defaults.
+    expect(anchorInput).toHaveValue("");
+    expect(assetInput).toHaveValue("USDC");
+    expect(amountInput).toHaveValue("");
+
+    // All error messages must be gone.
+    expect(screen.queryByText("Anchor id is required.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asset is required.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Enter a valid amount.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Amount must be greater than zero.")).not.toBeInTheDocument();
+
+    // The anchor input must receive focus.
+    expect(anchorInput).toHaveFocus();
+
+    // Reset must not have triggered a network request.
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not submit when Reset is clicked", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchor-a" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "100" },
+    });
+    fireEvent.click(screen.getByText("Reset"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });
