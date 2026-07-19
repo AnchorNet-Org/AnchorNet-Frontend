@@ -12,6 +12,7 @@ import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
+import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { SettlementForm } from "./SettlementForm";
@@ -26,19 +27,36 @@ type ListState =
   | { status: "error"; message: string }
   | { status: "ready"; settlements: Settlement[]; pagination: Pagination };
 
+/**
+ * Parses and validates a page-size value from a string.
+ * Returns the parsed value if it is one of the allowed options, otherwise the
+ * first (default) option.
+ */
+function parsePageSize(raw: string): number {
+  const n = Number(raw);
+  return PAGE_SIZE_OPTIONS.includes(n) ? n : PAGE_SIZE_OPTIONS[0];
+}
+
 /** Client panel for opening and managing settlements. */
 export function SettlementsPanel() {
   const [state, setState] = useState<ListState>({ status: "loading" });
   const [nonce, setNonce] = useState(0);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [query, setQuery] = useState("");
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
+
+  // Sync search query and page size to/from the URL querystring.
+  // Initial values are hydrated from the URL on first render.
+  const [query, setQuery] = useQueryState("q", "");
+  const [rawPageSize, setRawPageSize] = useQueryState(
+    "pageSize",
+    String(PAGE_SIZE_OPTIONS[0]),
+  );
+  const pageSize = parsePageSize(rawPageSize);
 
   const reload = useCallback(() => {
     setState({ status: "loading" });
@@ -64,7 +82,7 @@ export function SettlementsPanel() {
 
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
-    setPageSize(size);
+    setRawPageSize(String(size));
   }
 
   async function loadMore() {

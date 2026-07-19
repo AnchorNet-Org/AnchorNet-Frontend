@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SettlementsPanel } from "@/components/SettlementsPanel";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
   title: "Settlements – AnchorNet",
@@ -19,7 +21,11 @@ export default function SettlementsPage() {
           Reserve pool liquidity to settle cross-anchor payments.
         </p>
         <div className="mt-8">
-          <SettlementsPanel />
+          {/* Suspense is required by Next.js App Router when a child client
+              component reads useSearchParams() at render time. */}
+          <Suspense fallback={<TableSkeleton columns={6} />}>
+            <SettlementsPanel />
+          </Suspense>
         </div>
       </main>
     </div>

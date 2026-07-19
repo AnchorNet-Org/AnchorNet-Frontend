@@ -11,6 +11,7 @@ import { matchesQuery } from "@/lib/search";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
+import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
@@ -24,6 +25,11 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ];
+
+/** Returns true if `value` is a valid {@link StatusFilter}. */
+function isStatusFilter(value: string): value is StatusFilter {
+  return value === "all" || value === "active" || value === "inactive";
+}
 
 /** Filters anchors by lifecycle status for the client-side status tabs. */
 function filterAnchors(anchors: Anchor[], filter: StatusFilter): Anchor[] {
@@ -40,13 +46,19 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [query, setQuery] = useState("");
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
+
+  // Sync status filter and search query to the URL querystring.
+  // Initial values are hydrated from the URL on first render.
+  const [rawStatus, setStatus] = useQueryState("status", "all");
+  const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
+
+  const [query, setQuery] = useQueryState("q", "");
+
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
@@ -97,7 +109,7 @@ export function AnchorsPanel() {
                 {FILTERS.map((f) => (
                   <button
                     key={f.value}
-                    onClick={() => setFilter(f.value)}
+                    onClick={() => setStatus(f.value)}
                     aria-pressed={filter === f.value}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       filter === f.value

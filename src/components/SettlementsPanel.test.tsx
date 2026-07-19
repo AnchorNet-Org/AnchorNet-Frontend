@@ -16,6 +16,19 @@ import {
 } from "@/lib/settlementsApi";
 import { Settlement, SettlementsPage } from "@/lib/types";
 
+// ---------------------------------------------------------------------------
+// Mock next/navigation so the panel can run in jsdom.
+// ---------------------------------------------------------------------------
+
+const mockReplace = vi.fn();
+let mockSearchParamsString = "";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+  usePathname: () => "/settlements",
+}));
+
 vi.mock("@/lib/settlementsApi", () => ({
   fetchSettlements: vi.fn(),
   openSettlement: vi.fn(),
@@ -25,6 +38,7 @@ vi.mock("@/lib/settlementsApi", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParamsString = "";
 });
 
 function page(
@@ -184,5 +198,101 @@ describe("SettlementsPanel", () => {
       within(dialog).getByRole("button", { name: "Cancel settlement" }),
     );
     await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
+  });
+
+  // -------------------------------------------------------------------------
+  // URL querystring hydration tests
+  // -------------------------------------------------------------------------
+
+  it("hydrates the search query from the URL querystring on load", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Only the matching row visible; search box pre-filled
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.queryByText("other")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+  });
+
+  it("hydrates the page size from the URL querystring on load", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The page-size selector should reflect the URL value
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("25");
+    // fetchSettlements must have been called with pageSize=25
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+  });
+
+  it("updates the URL querystring when the search query changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "foo" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("q=foo"),
+      { scroll: false },
+    );
+  });
+
+  it("updates the URL querystring when the page size changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "25" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("pageSize=25"),
+      { scroll: false },
+    );
+  });
+
+  it("ignores an invalid pageSize param and falls back to the default", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Invalid value — should fall back to 10
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 10 }),
+    );
+  });
+
+  it("removes the pageSize param from the URL when set to the default", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "10" },
+    });
+
+    // 10 is the default so the param should be stripped
+    expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
   });
 });
