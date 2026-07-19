@@ -75,7 +75,12 @@ Registering an anchor or opening a settlement is validated inline (missing or
 invalid fields are flagged next to the input before the request is sent), and
 every mutating action — register, deactivate, open, execute, cancel — reports
 success or failure via a **toast notification** in the bottom corner of the
-screen. Deactivating an anchor or cancelling a settlement first opens a
+screen. Toasts are announced via `aria-live="polite"` and auto-dismiss after
+five seconds, but pause on hover or keyboard focus and resume the countdown
+from the remaining time when the pointer leaves or focus is lost — so a toast
+never lingers indefinitely just because it was glanced at, and never vanishes
+while a user is reading or interacting with it. Deactivating an anchor or
+cancelling a settlement first opens a
 **confirmation dialog**, on both the list panels and their detail pages, so a
 misclick can't silently take a destructive action. The dialog is keyboard
 accessible: it autofocuses the (non-destructive) cancel button, closes on
