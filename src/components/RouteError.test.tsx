@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RouteError } from "./RouteError";
 
@@ -36,5 +36,33 @@ describe("RouteError", () => {
     render(<RouteError error={new Error("boom")} reset={reset} />);
     fireEvent.click(screen.getByText("Try again"));
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  describe("'Try again' uses the retry callback, not a full page reload", () => {
+    let reloadMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      // Stub window.location.reload so we can assert it is never called.
+      reloadMock = vi.fn();
+      vi.stubGlobal("location", { ...window.location, reload: reloadMock });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("invokes the reset callback on click", () => {
+      const reset = vi.fn();
+      render(<RouteError error={new Error("oops")} reset={reset} />);
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(reset).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT call window.location.reload on click", () => {
+      const reset = vi.fn();
+      render(<RouteError error={new Error("oops")} reset={reset} />);
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(reloadMock).not.toHaveBeenCalled();
+    });
   });
 });
