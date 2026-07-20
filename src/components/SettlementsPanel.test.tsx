@@ -200,19 +200,102 @@ describe("SettlementsPanel", () => {
     );
   });
 
-  it("executes a settlement", async () => {
-    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+  it("updates only the executed row and announces its new status", async () => {
+    const other = { ...sample, id: 2, anchor: "anchorB" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample, other]));
     vi.mocked(executeSettlement).mockResolvedValue({
       ...sample,
+      anchor: "anchorA-updated",
       status: "executed",
     });
 
     renderPanel();
     await screen.findByText("anchorA");
 
-    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
+    const table = screen.getByRole("table");
+    const row = screen
+      .getByText("anchorA")
+      .closest("tr") as HTMLTableRowElement;
+    const otherRow = screen
+      .getByText("anchorB")
+      .closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    const liveRegion = visibleBadge.nextElementSibling as HTMLElement;
+    const otherBadge = within(otherRow).getByText("Pending");
+    const otherLiveRegion = otherBadge.nextElementSibling as HTMLElement;
+    expect(liveRegion).toBeEmptyDOMElement();
+    expect(otherLiveRegion).toBeEmptyDOMElement();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Execute" }));
 
     await waitFor(() => expect(executeSettlement).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Executed"));
+
+    expect(
+      screen.queryByLabelText("Loading table data"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBe(table);
+    expect(screen.getByText("anchorA-updated").closest("tr")).toBe(row);
+    expect(visibleBadge).toBeInTheDocument();
+    expect(liveRegion).toBeInTheDocument();
+    expect(visibleBadge).toHaveTextContent("Executed");
+    expect(screen.getByText("anchorB").closest("tr")).toBe(otherRow);
+    expect(otherBadge).toHaveTextContent("Pending");
+    expect(otherLiveRegion).toBeEmptyDOMElement();
+    expect(fetchSettlements).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Executed settlement #1.")).toBeInTheDocument();
+  });
+
+  it("updates a loaded later-page row without discarding loaded settlements", async () => {
+    const laterPageSettlement = {
+      ...sample,
+      id: 2,
+      anchor: "anchorB",
+    };
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([laterPageSettlement], { page: 2, totalPages: 2, total: 2 }),
+      );
+    vi.mocked(cancelSettlement).mockResolvedValue({
+      ...laterPageSettlement,
+      status: "cancelled",
+    });
+
+    renderPanel();
+    await screen.findByText("anchorA");
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    await screen.findByText("anchorB");
+
+    const table = screen.getByRole("table");
+    const firstRow = screen
+      .getByText("anchorA")
+      .closest("tr") as HTMLTableRowElement;
+    const laterRow = screen
+      .getByText("anchorB")
+      .closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(laterRow).getByText("Pending");
+    const liveRegion = visibleBadge.nextElementSibling as HTMLElement;
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    fireEvent.click(within(laterRow).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Cancelled"));
+
+    expect(screen.queryByLabelText("Loading table data")).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBe(table);
+    expect(screen.getByText("anchorA").closest("tr")).toBe(firstRow);
+    expect(screen.getByText("anchorB").closest("tr")).toBe(laterRow);
+    expect(visibleBadge).toHaveTextContent("Cancelled");
+    expect(liveRegion).toBeInTheDocument();
+    expect(fetchSettlements).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Cancelled settlement #2.")).toBeInTheDocument();
   });
 
   it("confirms before cancelling a settlement", async () => {
