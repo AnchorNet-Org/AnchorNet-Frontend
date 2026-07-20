@@ -34,6 +34,7 @@ vi.mock("@/lib/settlementsApi", () => ({
   openSettlement: vi.fn(),
   executeSettlement: vi.fn(),
   cancelSettlement: vi.fn(),
+  exportSettlementsCsv: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -110,6 +111,40 @@ describe("SettlementsPanel", () => {
 
     expect(screen.getByText("anchorA")).toBeInTheDocument();
     expect(screen.queryByText("other")).not.toBeInTheDocument();
+  });
+
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No settlements yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No settlements match your search."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
   it("loads more settlements and appends them", async () => {
@@ -294,5 +329,28 @@ describe("SettlementsPanel", () => {
 
     // 10 is the default so the param should be stripped
     expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
+  });
+
+  it("exports settlements as CSV", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(exportSettlementsCsv).mockResolvedValue("id,anchor\n1,anchorA");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledWith({ pageSize: 10 });
+    });
+
+    // Check if the download link was created
+    expect(createObjectURL).toHaveBeenCalled();
   });
 });
