@@ -15,6 +15,32 @@ describe("truncateAddress", () => {
   it("leaves short addresses untouched", () => {
     expect(truncateAddress("GABC")).toBe("GABC");
   });
+
+  // Boundary is `address.length <= visible * 2 + 1`: at or below it the
+  // address is returned as-is, above it it is truncated. With the default
+  // visible = 4 the threshold length is 9.
+  it("returns an address of length visible*2 (8) unchanged", () => {
+    expect(truncateAddress("ABCDEFGH")).toBe("ABCDEFGH");
+  });
+
+  it("returns an address of length visible*2+1 (9) unchanged", () => {
+    expect(truncateAddress("ABCDEFGHI")).toBe("ABCDEFGHI");
+  });
+
+  it("truncates an address of length visible*2+2 (10)", () => {
+    expect(truncateAddress("ABCDEFGHIJ")).toBe("ABCD…GHIJ");
+  });
+
+  // The same boundary math must hold for a custom visible value. With
+  // visible = 6 the threshold length is 13.
+  it("respects the boundary for a custom visible value", () => {
+    // length 12 (visible*2) — unchanged
+    expect(truncateAddress("ABCDEFGHIJKL", 6)).toBe("ABCDEFGHIJKL");
+    // length 13 (visible*2+1) — unchanged
+    expect(truncateAddress("ABCDEFGHIJKLM", 6)).toBe("ABCDEFGHIJKLM");
+    // length 14 (visible*2+2) — truncated
+    expect(truncateAddress("ABCDEFGHIJKLMN", 6)).toBe("ABCDEF…IJKLMN");
+  });
 });
 
 describe("mockAddress", () => {
