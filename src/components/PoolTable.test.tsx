@@ -46,6 +46,12 @@ describe("PoolTable", () => {
     expect(assetCells()).toEqual(["EURC", "USDC", "XLM"]);
   });
 
+  it("applies a visible focus style to sortable header buttons", () => {
+    render(<PoolTable pools={pools} />);
+    const sortButton = screen.getByLabelText("Sort by Asset");
+    expect(sortButton).toHaveClass("focus-visible:border", "focus-visible:border-zinc-600");
+  });
+
   it("exposes the current sort direction via aria-sort", () => {
     render(<PoolTable pools={pools} />);
     const header = screen.getByLabelText("Sort by Asset").closest("th");

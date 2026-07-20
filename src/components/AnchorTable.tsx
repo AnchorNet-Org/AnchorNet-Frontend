@@ -119,7 +119,7 @@ function SortableHeader({
         type="button"
         onClick={() => onSort(sortKey)}
         aria-label={`Sort by ${label}`}
-        className="flex items-center gap-1 hover:text-zinc-200"
+        className="flex items-center gap-1 rounded-sm px-1 py-0.5 hover:text-zinc-200 focus-visible:border focus-visible:border-zinc-600 focus-visible:outline-none"
       >
         {label}
         <span className="w-2 text-[10px] text-zinc-500">{indicator}</span>

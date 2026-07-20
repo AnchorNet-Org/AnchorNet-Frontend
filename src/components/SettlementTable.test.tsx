@@ -46,6 +46,12 @@ describe("SettlementTable sorting", () => {
     expect(amountCells()).toEqual(["300", "200", "100"]);
   });
 
+  it("applies a visible focus style to sortable header buttons", () => {
+    render(<SettlementTable settlements={settlements} />);
+    const sortButton = screen.getByLabelText("Sort by Amount");
+    expect(sortButton).toHaveClass("focus-visible:border", "focus-visible:border-zinc-600");
+  });
+
   it("exposes the current sort direction via aria-sort", () => {
     render(<SettlementTable settlements={settlements} />);
     const header = screen.getByLabelText("Sort by Amount").closest("th");
