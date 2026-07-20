@@ -90,6 +90,28 @@ describe("settlementsApi", () => {
     expect(url.endsWith("/api/v1/settlements")).toBe(true);
   });
 
+  describe("exportSettlementsCsv", () => {
+    it("fetches settlements as CSV and passes query params including format", async () => {
+      const mockText = vi.fn().mockResolvedValue("id,anchor\n1,a");
+      const fn = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: mockText,
+      });
+      vi.stubGlobal("fetch", fn);
+
+      const { exportSettlementsCsv } = await import("./settlementsApi");
+      const result = await exportSettlementsCsv({ anchor: "b", page: 1, pageSize: 50 });
+      
+      expect(result).toBe("id,anchor\n1,a");
+      const url = fn.mock.calls[0][0] as string;
+      expect(url).toContain("anchor=b");
+      expect(url).toContain("page=1");
+      expect(url).toContain("pageSize=50");
+      expect(url).toContain("format=csv");
+    });
+  });
+
   it("fetches a single settlement by id", async () => {
     const fn = mockFetch(200, settlement());
     vi.stubGlobal("fetch", fn);

@@ -68,10 +68,42 @@ function ToastItem({
   toast: Toast;
   onDismiss: (id: number) => void;
 }) {
-  useEffect(() => {
-    const timer = setTimeout(() => onDismiss(toast.id), AUTO_DISMISS_MS);
-    return () => clearTimeout(timer);
+  // Milliseconds left before the toast auto-dismisses. Starts at the full
+  // duration and is decremented every time the timer is paused, so an
+  // un-hover/focus-loss resumes from where it left off instead of restarting.
+  const remainingRef = useRef(AUTO_DISMISS_MS);
+  // Virtual timestamp (via the faked clock in tests) marking when the current
+  // running segment began, used to measure elapsed time on pause. Seeded in
+  // `startTimer` (run from an effect, not during render) to stay render-pure.
+  const startRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // (Re)start the dismiss countdown for whatever is left in `remainingRef`.
+  const startTimer = useCallback(() => {
+    startRef.current = Date.now();
+    timerRef.current = setTimeout(() => onDismiss(toast.id), remainingRef.current);
   }, [toast.id, onDismiss]);
+
+  // Pause the countdown, banking the elapsed time into `remainingRef` so the
+  // next `startTimer` resumes rather than restarts from the full duration.
+  const pauseTimer = useCallback(() => {
+    if (timerRef.current === null) return; // already paused; do nothing
+    clearTimer();
+    const elapsed = Date.now() - startRef.current;
+    remainingRef.current = Math.max(0, remainingRef.current - elapsed);
+  }, [clearTimer]);
+
+  useEffect(() => {
+    startTimer();
+    return clearTimer;
+  }, [startTimer, clearTimer]);
 
   const styles =
     toast.kind === "success"
@@ -81,6 +113,11 @@ function ToastItem({
   return (
     <div
       role="status"
+      aria-live="polite"
+      onMouseEnter={pauseTimer}
+      onMouseLeave={startTimer}
+      onFocus={pauseTimer}
+      onBlur={startTimer}
       className={`pointer-events-auto w-full max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur ${styles}`}
     >
       <div className="flex items-start justify-between gap-3">

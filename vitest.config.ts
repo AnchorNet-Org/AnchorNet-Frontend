@@ -6,6 +6,18 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      // This issue's contract is that ToastProvider's pause/resume timing is
+      // correct; enforce it with a hard 95% floor on the file under test.
+      include: ["src/components/ToastProvider.tsx"],
+      thresholds: {
+        statements: 95,
+        branches: 95,
+        functions: 95,
+        lines: 95,
+      },
+    },
   },
   resolve: {
     alias: {
