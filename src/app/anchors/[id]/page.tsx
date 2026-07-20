@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AnchorDetail } from "@/components/AnchorDetail";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 export const metadata: Metadata = {
   title: "Anchor detail – AnchorNet",
@@ -18,7 +19,14 @@ export default async function AnchorDetailPage({
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <Breadcrumb
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Anchors", href: "/anchors" },
+            { label: id },
+          ]}
+        />
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
           Anchor detail
         </h1>
         <p className="mt-1 text-sm text-zinc-400">

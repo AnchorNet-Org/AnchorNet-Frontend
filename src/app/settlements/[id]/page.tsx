@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SettlementDetail } from "@/components/SettlementDetail";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 export const metadata: Metadata = {
   title: "Settlement detail – AnchorNet",
@@ -19,7 +20,14 @@ export default async function SettlementDetailPage({
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <Breadcrumb
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Settlements", href: "/settlements" },
+            { label: id },
+          ]}
+        />
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
           Settlement detail
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
