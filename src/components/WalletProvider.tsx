@@ -48,7 +48,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connect = useCallback(() => {
-    const next = { address: mockAddress("anchornet-user") };
+    const next = { address: mockAddress() };
     saveAccount(next);
     setAccount(next);
   }, []);

@@ -11,6 +11,7 @@ import { StatCard } from "./StatCard";
 import { PoolTable } from "./PoolTable";
 import { PoolDistributionBar } from "./PoolDistributionBar";
 import { TableSkeleton } from "./TableSkeleton";
+import { EmptyState } from "./EmptyState";
 
 type LoadState =
   | { status: "loading" }
@@ -116,9 +117,11 @@ export function PoolsPanel() {
           </div>
         </div>
         {filteredPools.length === 0 && state.pools.length > 0 ? (
-          <p className="py-6 text-center text-sm text-zinc-500">
-            No pools match your search.
-          </p>
+          <EmptyState
+            reason="no-results"
+            message="No pools match your search."
+            onClearFilters={() => setQuery("")}
+          />
         ) : (
           <PoolTable pools={filteredPools} />
         )}

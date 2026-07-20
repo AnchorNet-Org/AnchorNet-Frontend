@@ -14,6 +14,19 @@ import {
   deregisterAnchor,
 } from "@/lib/anchorsApi";
 
+// ---------------------------------------------------------------------------
+// Mock next/navigation so the panel can run in jsdom.
+// ---------------------------------------------------------------------------
+
+const mockReplace = vi.fn();
+let mockSearchParamsString = "";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+  usePathname: () => "/anchors",
+}));
+
 vi.mock("@/lib/anchorsApi", () => ({
   fetchAnchors: vi.fn(),
   registerAnchor: vi.fn(),
@@ -22,6 +35,7 @@ vi.mock("@/lib/anchorsApi", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParamsString = "";
 });
 
 function renderPanel() {
@@ -92,6 +106,66 @@ describe("AnchorsPanel", () => {
     expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
   });
 
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No anchors registered yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.change(screen.getByLabelText("Search anchors"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No anchors match your search or filter."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No anchors registered yet."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search anchors")).toHaveValue("");
+  });
+
+  it("clears the status filter from the no-results empty state", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Inactive" }));
+    expect(
+      screen.getByText("No anchors match your search or filter."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("registers a new anchor and reloads the list", async () => {
     vi.mocked(fetchAnchors).mockResolvedValue([]);
     vi.mocked(registerAnchor).mockResolvedValue({
@@ -139,5 +213,112 @@ describe("AnchorsPanel", () => {
     const dialog = screen.getByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
     await waitFor(() => expect(deregisterAnchor).toHaveBeenCalledWith("a"));
+  });
+
+  // -------------------------------------------------------------------------
+  // URL querystring hydration tests
+  // -------------------------------------------------------------------------
+
+  it("hydrates the status filter from the URL querystring on load", async () => {
+    mockSearchParamsString = "status=active";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: false },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // Only the active anchor should be visible; the Active tab should be pressed
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.queryByText("Anchor B")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Active" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("hydrates the search query from the URL querystring on load", async () => {
+    mockSearchParamsString = "q=vault";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "stellar-anchor", name: "Stellar Vault", registeredAt: "", active: true },
+      { id: "other", name: "Something Else", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Stellar Vault");
+
+    // Only matching anchor visible; search box pre-filled
+    expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
+    expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search anchors")).toHaveValue("vault");
+  });
+
+  it("updates the URL querystring when the status filter changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Active" }));
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("status=active"),
+      { scroll: false },
+    );
+  });
+
+  it("updates the URL querystring when the search query changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.change(screen.getByLabelText("Search anchors"), {
+      target: { value: "foo" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("q=foo"),
+      { scroll: false },
+    );
+  });
+
+  it("removes the status param from the URL when All is selected", async () => {
+    mockSearchParamsString = "status=active";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+
+    // 'all' is the default so the param should be stripped
+    expect(mockReplace).toHaveBeenCalledWith("/anchors", { scroll: false });
+  });
+
+  it("ignores an unrecognised status param and falls back to 'all'", async () => {
+    mockSearchParamsString = "status=unknown";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: false },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // Both anchors visible because filter falls back to 'all'
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByText("Anchor B")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "All" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });

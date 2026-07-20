@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  markConfirmDialogClosed,
+  markConfirmDialogOpen,
+} from "./confirmDialogOpenState";
 
 /** A modal dialog gating a destructive action behind an explicit confirm step. */
 export function ConfirmDialog({
@@ -22,6 +26,13 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    markConfirmDialogOpen();
+    return () => markConfirmDialogClosed();
+  }, [open]);
 
   // Escape dismisses the dialog, and the cancel button (the non-destructive
   // choice) receives focus on open so a stray Enter keypress can't confirm.
@@ -79,6 +90,12 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onCancel();
+              }
+            }}
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
           >
             {cancelLabel}
@@ -87,6 +104,12 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onConfirm();
+              }
+            }}
             className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
           >
             {confirmLabel}

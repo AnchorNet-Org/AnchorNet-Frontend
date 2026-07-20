@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { isAbortError } from "@/lib/api";
 
 export type AsyncState<T> =
   | { status: "loading" }
@@ -13,13 +14,18 @@ export type AsyncState<T> =
  * The loader is expected to be behaviourally stable; re-running is driven by
  * `reload`, which also surfaces a loading state.
  */
-export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>): {
+export function useAsync<T>(
+  load: (signal: AbortSignal) => Promise<T>,
+  initialState: AsyncState<T> = { status: "loading" },
+): {
   state: AsyncState<T>;
   reload: () => void;
-  refresh: () => void;
+  /** Re-fetches; resolves when the triggered fetch settles (never rejects). */
+  refresh: () => Promise<void>;
 } {
-  const [state, setState] = useState<AsyncState<T>>({ status: "loading" });
+  const [state, setState] = useState<AsyncState<T>>(initialState);
   const [nonce, setNonce] = useState(0);
+  const refreshWaiters = useRef<Array<() => void>>([]);
 
   // `reload` re-fetches and shows a loading state; `refresh` re-fetches
   // silently, keeping the current data visible until the new data arrives.
@@ -27,18 +33,36 @@ export function useAsync<T>(load: (signal: AbortSignal) => Promise<T>): {
     setState({ status: "loading" });
     setNonce((n) => n + 1);
   }, []);
-  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+  const refresh = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        refreshWaiters.current.push(resolve);
+        setNonce((n) => n + 1);
+      }),
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     load(controller.signal)
       .then((data) => setState({ status: "ready", data }))
       .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
+        // Swallow deliberate cancellations: either the controller we own was
+        // aborted (unmount / reload) or the load function itself threw an
+        // AbortError (e.g. from an externally-supplied signal).  Neither case
+        // is a genuine failure, so we must never surface an error toast.
+        if (controller.signal.aborted || isAbortError(err)) return;
         setState({
           status: "error",
           message: err instanceof Error ? err.message : "Request failed",
         });
+      })
+      .finally(() => {
+        // An aborted fetch was superseded by a newer one (or unmounted); its
+        // waiters stay queued until the fetch that actually settles resolves
+        // them all.
+        if (controller.signal.aborted) return;
+        refreshWaiters.current.splice(0).forEach((resolve) => resolve());
       });
     return () => controller.abort();
     // `load` is intentionally excluded; re-runs are driven by `reload`/`nonce`.

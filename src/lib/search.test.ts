@@ -14,6 +14,13 @@ describe("matchesQuery", () => {
 
   it("trims surrounding whitespace from the query", () => {
     expect(matchesQuery(["Alpha Anchor"], "  alpha  ")).toBe(true);
+    expect(matchesQuery(["Alpha Anchor"], "\talpha\n")).toBe(true);
+  });
+
+  it("collapses internal repeated whitespace in the query", () => {
+    expect(matchesQuery(["Alpha Anchor"], "alpha   anchor")).toBe(true);
+    expect(matchesQuery(["Alpha Anchor"], "alpha\t\tanchor")).toBe(true);
+    expect(matchesQuery(["Alpha Anchor"], "  alpha \t  anchor  ")).toBe(true);
   });
 
   it("returns false when no field contains the query", () => {

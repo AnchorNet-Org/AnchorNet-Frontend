@@ -45,8 +45,11 @@ export interface Anchor {
   active: boolean;
 }
 
+/** All valid lifecycle states of a settlement, in canonical order. */
+export const SETTLEMENT_STATUSES = ["pending", "executed", "cancelled"] as const;
+
 /** Lifecycle state of a settlement. */
-export type SettlementStatus = "pending" | "executed" | "cancelled";
+export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 
 /** A cross-anchor settlement drawing on pool liquidity. */
 export interface Settlement {
