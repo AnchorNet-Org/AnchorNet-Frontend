@@ -91,6 +91,21 @@ describe("wallet session persistence", () => {
     expect(window.localStorage.getItem("anchornet:wallet:seed")).toBeNull();
   });
 
+  it("is idempotent when the storage key is already absent", () => {
+    // Nothing has been saved, so the keys start absent.
+    expect(window.localStorage.getItem("anchornet:wallet")).toBeNull();
+
+    // Repeated clears must not throw and must leave storage clean.
+    expect(() => {
+      clearAccount();
+      clearAccount();
+    }).not.toThrow();
+
+    expect(loadAccount()).toBeNull();
+    expect(window.localStorage.getItem("anchornet:wallet")).toBeNull();
+    expect(window.localStorage.getItem("anchornet:wallet:seed")).toBeNull();
+  });
+
   it("ignores malformed persisted data", () => {
     window.localStorage.setItem("anchornet:wallet", "not json");
     expect(loadAccount()).toBeNull();

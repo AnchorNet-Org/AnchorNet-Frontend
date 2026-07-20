@@ -60,6 +60,29 @@ describe("WalletProvider", () => {
     expect(localStorage.getItem("anchornet:wallet")).toBeNull();
   });
 
+  it("is a harmless no-op when disconnect is called while already disconnected", () => {
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+
+    // Starts disconnected; no connect() has run.
+    expect(screen.getByText("disconnected")).toBeInTheDocument();
+
+    // A stray double-fire (e.g. a second click, or a race with cross-tab
+    // sync) must not throw and must leave the account null.
+    expect(() =>
+      fireEvent.click(screen.getByText("disconnect")),
+    ).not.toThrow();
+    expect(() =>
+      fireEvent.click(screen.getByText("disconnect")),
+    ).not.toThrow();
+
+    expect(screen.getByText("disconnected")).toBeInTheDocument();
+    expect(localStorage.getItem("anchornet:wallet")).toBeNull();
+  });
+
   it("restores a previously connected account on mount", async () => {
     localStorage.setItem(
       "anchornet:wallet",
