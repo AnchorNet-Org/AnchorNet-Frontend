@@ -163,6 +163,65 @@ describe("SettlementsPanel", () => {
     expect(screen.getAllByText("anchorA")).toHaveLength(2);
   });
 
+  it("announces the number of newly-loaded settlements via a live region", async () => {
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 3 }))
+      .mockResolvedValueOnce(
+        page(
+          [
+            { ...sample, id: 2 },
+            { ...sample, id: 3 },
+          ],
+          { page: 2, totalPages: 2, total: 3 },
+        ),
+      );
+
+    const { container } = renderPanel();
+    await screen.findByText("anchorA");
+
+    // No announcement on the initial page load.
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() =>
+      expect(liveRegion).toHaveTextContent("Loaded 2 more settlements"),
+    );
+  });
+
+  it("announces a singular label when one settlement is appended", async () => {
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([{ ...sample, id: 2 }], { page: 2, totalPages: 2, total: 2 }),
+      );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+
+    expect(
+      await screen.findByText("Loaded 1 more settlement"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not announce when Load more fails", async () => {
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockRejectedValueOnce(new Error("boom"));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.queryByText(/loaded \d+ more settlement/i)).not.toBeInTheDocument();
+  });
+
   it("shows a summary once every settlement is loaded", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
 

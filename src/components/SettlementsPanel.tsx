@@ -45,6 +45,9 @@ export function SettlementsPanel() {
   const [nonce, setNonce] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
+  // Screen-reader announcement for how many rows the last "Load more" added.
+  // Empty on initial load so nothing is announced until the user paginates.
+  const [loadMoreAnnouncement, setLoadMoreAnnouncement] = useState("");
   const [pending, setPending] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
@@ -92,6 +95,8 @@ export function SettlementsPanel() {
     if (state.status !== "ready") return;
     setLoadingMore(true);
     setMoreError(null);
+    // Clear so an identical follow-up announcement still triggers a change.
+    setLoadMoreAnnouncement("");
     try {
       const next = await fetchSettlements({
         page: state.pagination.page + 1,
@@ -105,6 +110,9 @@ export function SettlementsPanel() {
               pagination: next.pagination,
             }
           : prev,
+      );
+      setLoadMoreAnnouncement(
+        `Loaded ${pluralize(next.settlements.length, "more settlement")}`,
       );
     } catch (err: unknown) {
       setMoreError(
@@ -168,6 +176,10 @@ export function SettlementsPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Always-mounted live region so screen readers pick up text changes. */}
+      <div aria-live="polite" className="sr-only">
+        {loadMoreAnnouncement}
+      </div>
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Open settlement
