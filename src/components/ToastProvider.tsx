@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Toast, pushToast, dismissToast } from "@/lib/toast";
+import { Toast, MAX_TOASTS, pushToast, dismissToast } from "@/lib/toast";
 
 export interface ToastContextValue {
   toasts: Toast[];
@@ -23,33 +23,57 @@ export const ToastContext = createContext<ToastContextValue | null>(null);
 /** How long a toast stays visible before auto-dismissing, in milliseconds. */
 const AUTO_DISMISS_MS = 5000;
 
+/** Toast stack plus how many toasts have been bumped off it since it was last under the cap. */
+interface ToastStackState {
+  toasts: Toast[];
+  droppedCount: number;
+}
+
+const INITIAL_STACK: ToastStackState = { toasts: [], droppedCount: 0 };
+
 /** Provides an app-wide toast notification stack and renders it fixed to the viewport. */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [stack, setStack] = useState<ToastStackState>(INITIAL_STACK);
   const nextId = useRef(1);
 
   const dismiss = useCallback((id: number) => {
-    setToasts((prev) => dismissToast(prev, id));
+    setStack((prev) => {
+      const toasts = dismissToast(prev.toasts, id);
+      // Once the stack is back under the cap, the dropped count is stale.
+      const droppedCount = toasts.length < MAX_TOASTS ? 0 : prev.droppedCount;
+      return { toasts, droppedCount };
+    });
   }, []);
 
   const notify = useCallback((kind: Toast["kind"], message: string) => {
     const toast: Toast = { id: nextId.current++, kind, message };
-    setToasts((prev) => pushToast(prev, toast));
+    setStack((prev) => {
+      const { toasts, droppedCount } = pushToast(prev.toasts, toast);
+      return { toasts, droppedCount: prev.droppedCount + droppedCount };
+    });
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toasts, notify, dismiss }}>
+    <ToastContext.Provider
+      value={{ toasts: stack.toasts, notify, dismiss }}
+    >
       {children}
-      <ToastViewport toasts={toasts} onDismiss={dismiss} />
+      <ToastViewport
+        toasts={stack.toasts}
+        droppedCount={stack.droppedCount}
+        onDismiss={dismiss}
+      />
     </ToastContext.Provider>
   );
 }
 
 function ToastViewport({
   toasts,
+  droppedCount,
   onDismiss,
 }: {
   toasts: Toast[];
+  droppedCount: number;
   onDismiss: (id: number) => void;
 }) {
   return (
@@ -57,6 +81,11 @@ function ToastViewport({
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}
+      {droppedCount > 0 && (
+        <p role="status" className="text-xs text-white/60">
+          +{droppedCount} more
+        </p>
+      )}
     </div>
   );
 }
