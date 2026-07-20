@@ -5,6 +5,7 @@ import { WalletProvider } from "@/components/WalletProvider";
 import { ToastProvider } from "@/components/ToastProvider";
 import { SiteFooter } from "@/components/SiteFooter";
 import { GlobalErrorHandler } from "@/components/GlobalErrorHandler";
+import { SkipToContentLink } from "@/components/SkipToContentLink";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <SkipToContentLink />
         <WalletProvider>
           <ToastProvider>
             {children}
