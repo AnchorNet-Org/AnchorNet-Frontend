@@ -1,12 +1,18 @@
-import { describe, it, expect } from "vitest";
-import { renderHook } from "@testing-library/react";
-import { createRef } from "react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, renderHook, screen } from "@testing-library/react";
+import { createElement, createRef } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { resetConfirmDialogOpenState } from "@/components/confirmDialogOpenState";
 import { useFocusShortcut } from "./useFocusShortcut";
 
 function pressKey(key: string, target: EventTarget = document.body) {
   const event = new KeyboardEvent("keydown", { key, bubbles: true });
   target.dispatchEvent(event);
 }
+
+afterEach(() => {
+  resetConfirmDialogOpenState();
+});
 
 describe("useFocusShortcut", () => {
   it("focuses the target element when the key is pressed", () => {
@@ -50,5 +56,47 @@ describe("useFocusShortcut", () => {
     pressKey("/");
 
     expect(document.activeElement).not.toBe(input);
+  });
+
+  it("does nothing while a confirm dialog is open, then works again after it closes", () => {
+    const searchInput = document.createElement("input");
+    const outsideButton = document.createElement("button");
+    document.body.appendChild(searchInput);
+    document.body.appendChild(outsideButton);
+    outsideButton.focus();
+
+    const ref = createRef<HTMLInputElement>();
+    ref.current = searchInput;
+
+    renderHook(() => useFocusShortcut("/", ref));
+    const dialog = render(
+      createElement(ConfirmDialog, {
+        open: true,
+        title: "Delete anchor",
+        message: "Are you sure?",
+        onConfirm: () => {},
+        onCancel: () => {},
+      }),
+    );
+
+    pressKey("/");
+    expect(document.activeElement).toBe(screen.getByText("Cancel"));
+
+    dialog.rerender(
+      createElement(ConfirmDialog, {
+        open: false,
+        title: "Delete anchor",
+        message: "Are you sure?",
+        onConfirm: () => {},
+        onCancel: () => {},
+      }),
+    );
+
+    outsideButton.focus();
+    pressKey("/");
+    expect(document.activeElement).toBe(searchInput);
+
+    document.body.removeChild(searchInput);
+    document.body.removeChild(outsideButton);
   });
 });

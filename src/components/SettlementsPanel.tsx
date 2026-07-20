@@ -6,6 +6,7 @@ import {
   openSettlement,
   executeSettlement,
   cancelSettlement,
+  exportSettlementsCsv,
 } from "@/lib/settlementsApi";
 import { Settlement, Pagination } from "@/lib/types";
 import { pluralize } from "@/lib/format";
@@ -18,6 +19,7 @@ import { TableSkeleton } from "./TableSkeleton";
 import { SettlementForm } from "./SettlementForm";
 import { SettlementTable } from "./SettlementTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 /** Selectable page sizes for the settlements list; the first is the default. */
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -44,6 +46,7 @@ export function SettlementsPanel() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -135,6 +138,27 @@ export function SettlementsPanel() {
     setPending(false);
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const csvText = await exportSettlementsCsv({ pageSize });
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "settlements.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify("success", "Exported settlements as CSV.");
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const visibleSettlements =
     state.status === "ready"
       ? state.settlements.filter((s) =>
@@ -159,6 +183,13 @@ export function SettlementsPanel() {
           <>
             {state.settlements.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+                >
+                  {exporting ? "Exporting…" : "Export CSV"}
+                </button>
                 <label className="flex items-center gap-1.5 text-xs text-zinc-400">
                   Rows per page
                   <select
@@ -185,9 +216,11 @@ export function SettlementsPanel() {
               </div>
             ) : null}
             {visibleSettlements.length === 0 && state.settlements.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No settlements match your search.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No settlements match your search."
+                onClearFilters={() => setQuery("")}
+              />
             ) : (
               <SettlementTable
                 settlements={visibleSettlements}
