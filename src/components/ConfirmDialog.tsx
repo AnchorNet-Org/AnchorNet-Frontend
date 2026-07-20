@@ -26,18 +26,29 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
+  // Capture the currently focused element when dialog opens
   useEffect(() => {
-    if (!open) return;
-
-    markConfirmDialogOpen();
-    return () => markConfirmDialogClosed();
+    if (open) {
+      triggerRef.current = document.activeElement as HTMLElement;
+      markConfirmDialogOpen();
+    } else {
+      markConfirmDialogClosed();
+    }
   }, [open]);
 
-  // Escape dismisses the dialog, and the cancel button (the non-destructive
-  // choice) receives focus on open so a stray Enter keypress can't confirm.
+  // Focus management
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // Restore focus to the original trigger when dialog closes
+      if (triggerRef.current && document.body.contains(triggerRef.current)) {
+        triggerRef.current.focus();
+      }
+      return;
+    }
+
+    // Focus cancel button on open (safer default)
     cancelRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
@@ -47,10 +58,10 @@ export function ConfirmDialog({
         return;
       }
       if (event.key === "Tab") {
-        // Trap focus within the dialog's two buttons.
         const first = cancelRef.current;
         const last = confirmRef.current;
         if (!first || !last) return;
+
         if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();
@@ -90,12 +101,6 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onCancel();
-              }
-            }}
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
           >
             {cancelLabel}
@@ -104,12 +109,6 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onConfirm();
-              }
-            }}
             className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
           >
             {confirmLabel}
