@@ -7,11 +7,14 @@ const STYLES: Record<SettlementStatus, string> = {
   cancelled: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30",
 };
 
+/** Neutral styling for a status outside the known {@link SettlementStatus} set. */
+const FALLBACK_STYLE = "bg-slate-500/15 text-slate-300 ring-slate-500/30";
+
 /** A coloured pill showing a settlement's lifecycle status. */
 export function StatusBadge({ status }: { status: SettlementStatus }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[status]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[status] ?? FALLBACK_STYLE}`}
     >
       {formatStatus(status)}
     </span>
