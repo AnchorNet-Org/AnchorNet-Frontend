@@ -50,6 +50,22 @@ export async function apiRequest<T>(
   return (await res.json()) as T;
 }
 
+/**
+ * Performs a request against the API and returns the response as text (e.g. CSV).
+ * Throws {@link ApiRequestError} on a non-2xx response.
+ */
+export async function apiTextRequest(
+  path: string,
+  init?: RequestInit,
+): Promise<string> {
+  const headers: Record<string, string> = { ...(init?.headers as object) };
+  if (init?.body) headers["Content-Type"] = "application/json";
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+  if (!res.ok) throw await parseError(res);
+  return await res.text();
+}
+
 /** Fetches the aggregated liquidity pools. */
 export async function fetchPools(signal?: AbortSignal): Promise<Pool[]> {
   const body = await apiRequest<{ pools: Pool[] }>("/api/v1/liquidity", {

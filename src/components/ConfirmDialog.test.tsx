@@ -116,8 +116,38 @@ describe("ConfirmDialog", () => {
         onCancel={onCancel}
       />,
     );
-    fireEvent.keyDown(document, { key: "Enter" });
-    expect(onCancel).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onConfirm when Enter is pressed on the confirm button", () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="t"
+        message="m"
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.keyDown(screen.getByText("Confirm"), { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onCancel when Space is pressed on the cancel button", () => {
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="t"
+        message="m"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.keyDown(screen.getByText("Cancel"), { key: " " });
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it("traps Tab focus from the confirm button back to the cancel button", () => {

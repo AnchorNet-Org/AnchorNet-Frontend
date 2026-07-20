@@ -68,4 +68,19 @@ describe("useSortableData", () => {
     act(() => result.current.requestSort("amount"));
     expect(rows).toEqual(original);
   });
+  it('persists sort across items replacement', () => {
+    const { result, rerender } = renderHook(
+      ({ data }) => useSortableData(data, getValue),
+      { initialProps: { data: rows } }
+    );
+    // set sort to ascending amount
+    act(() => result.current.requestSort('amount'));
+    expect(result.current.sort).toEqual({ key: 'amount', direction: 'asc' });
+    // create a new array with same items but different order
+    const newRows = [rows[2], rows[0], rows[1]];
+    rerender({ data: newRows });
+    // expect sorting still applied to new data
+    expect(result.current.sorted.map((r) => r.amount)).toEqual([10, 20, 30]);
+    expect(result.current.sort).toEqual({ key: 'amount', direction: 'asc' });
+  });
 });
