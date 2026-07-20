@@ -1,6 +1,7 @@
 "use client";
 
 import { RefObject, useEffect } from "react";
+import { isConfirmDialogOpen } from "@/components/confirmDialogOpenState";
 
 /**
  * Focuses `ref`'s element when `key` is pressed, unless focus is already
@@ -18,6 +19,10 @@ export function useFocusShortcut(
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+
+      if (isConfirmDialogOpen()) {
         return;
       }
 

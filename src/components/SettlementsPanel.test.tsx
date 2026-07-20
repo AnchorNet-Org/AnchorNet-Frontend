@@ -16,15 +16,30 @@ import {
 } from "@/lib/settlementsApi";
 import { Settlement, SettlementsPage } from "@/lib/types";
 
+// ---------------------------------------------------------------------------
+// Mock next/navigation so the panel can run in jsdom.
+// ---------------------------------------------------------------------------
+
+const mockReplace = vi.fn();
+let mockSearchParamsString = "";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+  usePathname: () => "/settlements",
+}));
+
 vi.mock("@/lib/settlementsApi", () => ({
   fetchSettlements: vi.fn(),
   openSettlement: vi.fn(),
   executeSettlement: vi.fn(),
   cancelSettlement: vi.fn(),
+  exportSettlementsCsv: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParamsString = "";
 });
 
 function page(
@@ -96,6 +111,40 @@ describe("SettlementsPanel", () => {
 
     expect(screen.getByText("anchorA")).toBeInTheDocument();
     expect(screen.queryByText("other")).not.toBeInTheDocument();
+  });
+
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No settlements yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No settlements match your search."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
   it("loads more settlements and appends them", async () => {
@@ -184,5 +233,124 @@ describe("SettlementsPanel", () => {
       within(dialog).getByRole("button", { name: "Cancel settlement" }),
     );
     await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
+  });
+
+  // -------------------------------------------------------------------------
+  // URL querystring hydration tests
+  // -------------------------------------------------------------------------
+
+  it("hydrates the search query from the URL querystring on load", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Only the matching row visible; search box pre-filled
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.queryByText("other")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+  });
+
+  it("hydrates the page size from the URL querystring on load", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The page-size selector should reflect the URL value
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("25");
+    // fetchSettlements must have been called with pageSize=25
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+  });
+
+  it("updates the URL querystring when the search query changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "foo" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("q=foo"),
+      { scroll: false },
+    );
+  });
+
+  it("updates the URL querystring when the page size changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "25" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("pageSize=25"),
+      { scroll: false },
+    );
+  });
+
+  it("ignores an invalid pageSize param and falls back to the default", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Invalid value — should fall back to 10
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 10 }),
+    );
+  });
+
+  it("removes the pageSize param from the URL when set to the default", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "10" },
+    });
+
+    // 10 is the default so the param should be stripped
+    expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
+  });
+
+  it("exports settlements as CSV", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(exportSettlementsCsv).mockResolvedValue("id,anchor\n1,anchorA");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledWith({ pageSize: 10 });
+    });
+
+    // Check if the download link was created
+    expect(createObjectURL).toHaveBeenCalled();
   });
 });

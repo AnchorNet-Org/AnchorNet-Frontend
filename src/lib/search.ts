@@ -11,7 +11,7 @@ export function matchesQuery(
   fields: Array<string | number>,
   query: string,
 ): boolean {
-  const needle = query.trim().toLowerCase();
+  const needle = query.trim().replace(/\s+/g, " ").toLowerCase();
   if (needle === "") return true;
   return fields.some((field) => String(field).toLowerCase().includes(needle));
 }
