@@ -1,11 +1,20 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { fetchPools, requestQuote, apiRequest, ApiRequestError } from "./api";
 
-function mockFetch(status: number, body: unknown) {
+function mockFetch(
+  status: number,
+  body: unknown,
+  headers?: Record<string, string>,
+) {
   return vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     statusText: "Mock",
+    headers: {
+      get(name: string) {
+        return headers?.[name] ?? null;
+      },
+    },
     json: async () => body,
   });
 }
@@ -37,6 +46,27 @@ describe("apiRequest", () => {
       code: "BAD_REQUEST",
       status: 400,
     });
+  });
+
+  it("attaches the x-request-id header when present on the response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(400, { error: { code: "ERR", message: "bad" } }, { "x-request-id": "req-abc" }),
+    );
+
+    await expect(apiRequest("/x")).rejects.toMatchObject({
+      requestId: "req-abc",
+    });
+  });
+
+  it("omits requestId when the response lacks the x-request-id header", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(400, { error: { code: "ERR", message: "bad" } }),
+    );
+
+    const err = await apiRequest("/x").catch((e) => e);
+    expect(err.requestId).toBeUndefined();
   });
 });
 

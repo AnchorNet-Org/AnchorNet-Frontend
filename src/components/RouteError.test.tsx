@@ -1,8 +1,34 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RouteError } from "./RouteError";
+import * as errorReporter from "@/lib/errorReporter";
+
+const mockReportError = vi.spyOn(errorReporter, "reportError").mockImplementation(() => {});
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/test-route",
+}));
 
 describe("RouteError", () => {
+  beforeEach(() => {
+    mockReportError.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reports the error via the error reporter on mount", () => {
+    const error = new Error("boom");
+    render(<RouteError error={error} reset={() => {}} />);
+
+    expect(mockReportError).toHaveBeenCalledTimes(1);
+    expect(mockReportError).toHaveBeenCalledWith(error, {
+      route: "/test-route",
+      requestId: undefined,
+    });
+  });
+
   it("renders a default title unless overridden", () => {
     render(<RouteError error={new Error("boom")} reset={() => {}} />);
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();

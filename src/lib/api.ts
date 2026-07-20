@@ -14,23 +14,26 @@ export const API_BASE_URL =
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly requestId?: string;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, requestId?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
+    this.requestId = requestId;
   }
 }
 
 async function parseError(res: Response): Promise<ApiRequestError> {
+  const requestId = res.headers.get("x-request-id") ?? undefined;
   try {
     const body = (await res.json()) as Partial<ApiErrorBody>;
     const code = body.error?.code ?? "UNKNOWN";
     const message = body.error?.message ?? res.statusText;
-    return new ApiRequestError(res.status, code, message);
+    return new ApiRequestError(res.status, code, message, requestId);
   } catch {
-    return new ApiRequestError(res.status, "UNKNOWN", res.statusText);
+    return new ApiRequestError(res.status, "UNKNOWN", res.statusText, requestId);
   }
 }
 
