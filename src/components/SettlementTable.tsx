@@ -33,6 +33,13 @@ export function SettlementTable({
   }
 
   const actionable = Boolean(onExecute || onCancel);
+  const totals = settlements.reduce(
+    (sum, settlement) => ({
+      amount: sum.amount + settlement.amount,
+      fee: sum.fee + settlement.fee,
+    }),
+    { amount: 0, fee: 0 },
+  );
 
   return (
     <table className="w-full text-left text-sm">
@@ -104,6 +111,17 @@ export function SettlementTable({
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr className="border-t border-zinc-800 font-medium">
+          <td className="py-2 text-zinc-300" colSpan={3}>
+            Total (visible rows)
+          </td>
+          <td className="py-2 text-zinc-100">{formatAmount(totals.amount)}</td>
+          <td className="py-2 text-zinc-300">{formatAmount(totals.fee)}</td>
+          <td />
+          {actionable ? <td /> : null}
+        </tr>
+      </tfoot>
     </table>
   );
 }
