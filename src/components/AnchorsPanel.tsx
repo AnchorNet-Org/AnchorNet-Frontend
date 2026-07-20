@@ -12,6 +12,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
@@ -20,6 +21,12 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+/**
+ * Delay (ms) before a paused search query is applied to the filtered list.
+ * The input itself stays bound to the immediate value, so typing never lags.
+ */
+const SEARCH_DEBOUNCE_MS = 200;
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -60,10 +67,14 @@ export function AnchorsPanel() {
 
   const [query, setQuery] = useQueryState("q", "");
 
+  // Debounce only the value that drives filtering so large anchor lists aren't
+  // re-filtered on every keystroke; the input stays bound to `query` above.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], query),
+          matchesQuery([anchor.id, anchor.name], debouncedQuery),
         )
       : [];
 
