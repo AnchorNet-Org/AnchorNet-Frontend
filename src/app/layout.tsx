@@ -4,6 +4,7 @@ import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
 import { ToastProvider } from "@/components/ToastProvider";
 import { SiteFooter } from "@/components/SiteFooter";
+import { GlobalErrorHandler } from "@/components/GlobalErrorHandler";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
           <ToastProvider>
             {children}
             <SiteFooter />
+            <GlobalErrorHandler />
           </ToastProvider>
         </WalletProvider>
       </body>

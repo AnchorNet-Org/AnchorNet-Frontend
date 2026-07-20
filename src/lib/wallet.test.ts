@@ -18,14 +18,48 @@ describe("truncateAddress", () => {
 });
 
 describe("mockAddress", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("produces a 56-character G-address", () => {
     const address = mockAddress();
     expect(address).toHaveLength(56);
     expect(address.startsWith("G")).toBe(true);
   });
 
-  it("is deterministic for a given seed", () => {
+  it("is deterministic for a given explicit seed", () => {
     expect(mockAddress("anchorA")).toBe(mockAddress("anchorA"));
+  });
+
+  it("produces the same address within a single session (no explicit seed)", () => {
+    const addr1 = mockAddress();
+    const addr2 = mockAddress();
+    expect(addr1).toBe(addr2);
+  });
+
+  it("produces different addresses across fresh sessions (simulated via clearing localStorage)", () => {
+    // First session
+    const addr1 = mockAddress();
+    
+    // Clear localStorage to simulate a fresh session
+    window.localStorage.clear();
+    
+    // Second session
+    const addr2 = mockAddress();
+    
+    expect(addr1).not.toBe(addr2);
+  });
+
+  it("preserves explicit seed behavior for deterministic testing", () => {
+    // Explicit seeds should always produce the same address regardless of session
+    const testSeed = "TEST_SEED_123";
+    const addr1 = mockAddress(testSeed);
+    
+    window.localStorage.clear();
+    
+    const addr2 = mockAddress(testSeed);
+    expect(addr1).toBe(addr2);
   });
 });
 
@@ -39,14 +73,22 @@ describe("wallet session persistence", () => {
   });
 
   it("round-trips a saved account", () => {
-    saveAccount({ address: mockAddress("anchornet-user") });
-    expect(loadAccount()).toEqual({ address: mockAddress("anchornet-user") });
+    const testAddress = mockAddress("test-user");
+    saveAccount({ address: testAddress });
+    expect(loadAccount()).toEqual({ address: testAddress });
   });
 
-  it("clears the persisted account", () => {
-    saveAccount({ address: mockAddress("anchornet-user") });
+  it("clears the persisted account and session seed", () => {
+    saveAccount({ address: mockAddress("test-user") });
+    // Generate a session seed by calling mockAddress without args
+    mockAddress();
+    
     clearAccount();
+    
     expect(loadAccount()).toBeNull();
+    // Verify that the session seed was also cleared
+    // (next call should generate a new random seed)
+    expect(window.localStorage.getItem("anchornet:wallet:seed")).toBeNull();
   });
 
   it("ignores malformed persisted data", () => {

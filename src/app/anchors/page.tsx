@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/SiteHeader";
 import { AnchorsPanel } from "@/components/AnchorsPanel";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
   title: "Anchors – AnchorNet",
@@ -17,7 +19,11 @@ export default function AnchorsPage() {
           Approved anchors that provide liquidity to the network.
         </p>
         <div className="mt-8">
-          <AnchorsPanel />
+          {/* Suspense is required by Next.js App Router when a child client
+              component reads useSearchParams() at render time. */}
+          <Suspense fallback={<TableSkeleton columns={3} />}>
+            <AnchorsPanel />
+          </Suspense>
         </div>
       </main>
     </div>
