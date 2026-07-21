@@ -3,6 +3,7 @@
 import { Pool } from "@/lib/types";
 import { formatAmount, pluralize } from "@/lib/format";
 import { useSortableData } from "@/hooks/useSortableData";
+import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
 
 type SortKey = "asset" | "total" | "anchors";
@@ -20,9 +21,7 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
 
   if (pools.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
-        No liquidity pools yet. Provide liquidity via the API to see them here.
-      </p>
+      <EmptyState message="No liquidity pools yet. Provide liquidity via the API to see them here." />
     );
   }
 

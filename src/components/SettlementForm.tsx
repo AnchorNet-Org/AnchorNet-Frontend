@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
@@ -43,6 +43,11 @@ export function SettlementForm({
   const [amount, setAmount] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
+  const anchorRef = useRef<HTMLInputElement>(null);
+  const anchorErrorId = "settlement-anchor-error";
+  const assetErrorId = "settlement-asset-error";
+  const amountErrorId = "settlement-amount-error";
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const nextErrors = validate(anchor, asset, amount);
@@ -58,10 +63,20 @@ export function SettlementForm({
     setErrors({});
   }
 
+  function reset() {
+    setAnchor("");
+    setAsset("USDC");
+    setAmount("");
+    setErrors({});
+    anchorRef.current?.focus();
+  }
+
   return (
     <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-4">
       <div>
         <input
+          ref={anchorRef}
+          id="settlement-anchor"
           value={anchor}
           onChange={(e) => {
             setAnchor(e.target.value);
@@ -69,14 +84,18 @@ export function SettlementForm({
           }}
           placeholder="Anchor id"
           aria-invalid={Boolean(errors.anchor)}
+          aria-describedby={errors.anchor ? anchorErrorId : undefined}
           className={errors.anchor ? invalidInputClass : inputClass}
         />
         {errors.anchor ? (
-          <p className="mt-1 text-xs text-red-400">{errors.anchor}</p>
+          <p id={anchorErrorId} className="mt-1 text-xs text-red-400">
+            {errors.anchor}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-asset"
           value={asset}
           onChange={(e) => {
             setAsset(e.target.value);
@@ -84,14 +103,18 @@ export function SettlementForm({
           }}
           placeholder="Asset"
           aria-invalid={Boolean(errors.asset)}
+          aria-describedby={errors.asset ? assetErrorId : undefined}
           className={errors.asset ? invalidInputClass : inputClass}
         />
         {errors.asset ? (
-          <p className="mt-1 text-xs text-red-400">{errors.asset}</p>
+          <p id={assetErrorId} className="mt-1 text-xs text-red-400">
+            {errors.asset}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-amount"
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
@@ -100,19 +123,31 @@ export function SettlementForm({
           inputMode="numeric"
           placeholder="Amount"
           aria-invalid={Boolean(errors.amount)}
+          aria-describedby={errors.amount ? amountErrorId : undefined}
           className={errors.amount ? invalidInputClass : inputClass}
         />
         {errors.amount ? (
-          <p className="mt-1 text-xs text-red-400">{errors.amount}</p>
+          <p id={amountErrorId} className="mt-1 text-xs text-red-400">
+            {errors.amount}
+          </p>
         ) : null}
       </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="h-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-      >
-        Open settlement
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="flex-1 h-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+        >
+          Open settlement
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="h-fit rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+        >
+          Reset
+        </button>
+      </div>
     </form>
   );
-}
+      }

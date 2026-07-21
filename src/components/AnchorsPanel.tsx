@@ -11,19 +11,33 @@ import { matchesQuery } from "@/lib/search";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
+import { useQueryState } from "@/hooks/useQueryState";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
 import { AnchorTable } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+/**
+ * Delay (ms) before a paused search query is applied to the filtered list.
+ * The input itself stays bound to the immediate value, so typing never lags.
+ */
+const SEARCH_DEBOUNCE_MS = 200;
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ];
+
+/** Returns true if `value` is a valid {@link StatusFilter}. */
+function isStatusFilter(value: string): value is StatusFilter {
+  return value === "all" || value === "active" || value === "inactive";
+}
 
 /** Filters anchors by lifecycle status for the client-side status tabs. */
 function filterAnchors(anchors: Anchor[], filter: StatusFilter): Anchor[] {
@@ -40,17 +54,27 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
-  const [filter, setFilter] = useState<StatusFilter>("all");
-  const [query, setQuery] = useState("");
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
+
+  // Sync status filter and search query to the URL querystring.
+  // Initial values are hydrated from the URL on first render.
+  const [rawStatus, setStatus] = useQueryState("status", "all");
+  const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
+
+  const [query, setQuery] = useQueryState("q", "");
+
+  // Debounce only the value that drives filtering so large anchor lists aren't
+  // re-filtered on every keystroke; the input stays bound to `query` above.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], query),
+          matchesQuery([anchor.id, anchor.name], debouncedQuery),
         )
       : [];
 
@@ -97,7 +121,7 @@ export function AnchorsPanel() {
                 {FILTERS.map((f) => (
                   <button
                     key={f.value}
-                    onClick={() => setFilter(f.value)}
+                    onClick={() => setStatus(f.value)}
                     aria-pressed={filter === f.value}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       filter === f.value
@@ -119,9 +143,14 @@ export function AnchorsPanel() {
               </div>
             ) : null}
             {filteredAnchors.length === 0 && state.data.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No anchors match this filter.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No anchors match your search or filter."
+                onClearFilters={() => {
+                  setStatus("all");
+                  setQuery("");
+                }}
+              />
             ) : (
               <AnchorTable
                 anchors={filteredAnchors}

@@ -5,6 +5,7 @@ import { Quote } from "@/lib/types";
 import { requestQuote } from "@/lib/api";
 import { feeInBps, formatAmount } from "@/lib/format";
 import { Card } from "./Card";
+import { CopyButton } from "./CopyButton";
 
 type Result =
   | { status: "idle" }
@@ -85,12 +86,22 @@ export function QuoteForm() {
             {formatAmount(result.quote.fee)} (
             {feeInBps(result.quote.fee, result.quote.amount)})
           </Row>
-          <Row label="Route">
-            {result.quote.route.join(" → ") || "—"}
-          </Row>
+          <RouteRow route={result.quote.route} />
         </dl>
       ) : null}
     </Card>
+  );
+}
+
+function RouteRow({ route }: { route: string[] }) {
+  const routeText = route.join(" → ");
+  return (
+    <Row label="Route">
+      <span className="inline-flex items-center gap-1">
+        {routeText || "—"}
+        {routeText ? <CopyButton text={routeText} /> : null}
+      </span>
+    </Row>
   );
 }
 

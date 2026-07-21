@@ -2,7 +2,7 @@
  * API client for settlement endpoints.
  */
 
-import { apiRequest } from "./api";
+import { apiRequest, apiTextRequest } from "./api";
 import { Settlement, SettlementsPage } from "./types";
 
 /** Options for {@link fetchSettlements}. */
@@ -29,6 +29,20 @@ export async function fetchSettlements(
   return apiRequest<SettlementsPage>(`/api/v1/settlements${query}`, {
     signal,
   });
+}
+
+/** Fetches settlements as CSV, optionally filtered by anchor. */
+export async function exportSettlementsCsv(
+  options: FetchSettlementsOptions = {},
+): Promise<string> {
+  const { anchor, page, pageSize, signal } = options;
+  const params = new URLSearchParams();
+  if (anchor) params.set("anchor", anchor);
+  if (page) params.set("page", String(page));
+  if (pageSize) params.set("pageSize", String(pageSize));
+  params.set("format", "csv");
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return apiTextRequest(`/api/v1/settlements${query}`, { signal });
 }
 
 /** Fetches a single settlement by id. */

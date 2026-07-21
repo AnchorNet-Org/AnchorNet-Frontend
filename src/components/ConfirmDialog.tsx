@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  markConfirmDialogClosed,
+  markConfirmDialogOpen,
+} from "./confirmDialogOpenState";
 
 /** A modal dialog gating a destructive action behind an explicit confirm step. */
 export function ConfirmDialog({
@@ -22,11 +26,29 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
-  // Escape dismisses the dialog, and the cancel button (the non-destructive
-  // choice) receives focus on open so a stray Enter keypress can't confirm.
+  // Capture the currently focused element when dialog opens
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      triggerRef.current = document.activeElement as HTMLElement;
+      markConfirmDialogOpen();
+    } else {
+      markConfirmDialogClosed();
+    }
+  }, [open]);
+
+  // Focus management
+  useEffect(() => {
+    if (!open) {
+      // Restore focus to the original trigger when dialog closes
+      if (triggerRef.current && document.body.contains(triggerRef.current)) {
+        triggerRef.current.focus();
+      }
+      return;
+    }
+
+    // Focus cancel button on open (safer default)
     cancelRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
@@ -36,10 +58,10 @@ export function ConfirmDialog({
         return;
       }
       if (event.key === "Tab") {
-        // Trap focus within the dialog's two buttons.
         const first = cancelRef.current;
         const last = confirmRef.current;
         if (!first || !last) return;
+
         if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();

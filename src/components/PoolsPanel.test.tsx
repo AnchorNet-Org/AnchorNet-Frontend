@@ -62,6 +62,44 @@ describe("PoolsPanel", () => {
     expect(screen.queryByText("EURC")).not.toBeInTheDocument();
   });
 
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+
+    expect(
+      await screen.findByText(/no liquidity pools yet/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    fireEvent.change(screen.getByLabelText("Search pools"), {
+      target: { value: "zzz" },
+    });
+
+    expect(
+      screen.getByText("No pools match your search."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no liquidity pools yet/i),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByLabelText("Search pools")).toHaveValue("");
+  });
+
   it("shows an error message and retries on demand", async () => {
     vi.mocked(fetchPools).mockRejectedValueOnce(new Error("network down"));
 

@@ -1,12 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { reportError } from "@/lib/errorReporter";
 import { Card } from "./Card";
 
-/**
- * Shared fallback rendered by a route segment's `error.tsx` boundary when a
- * page throws while rendering. `reset` re-renders the segment in place,
- * without a full page reload.
- */
 export function RouteError({
   error,
   reset,
@@ -16,6 +14,15 @@ export function RouteError({
   reset: () => void;
   title?: string;
 }) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    reportError(error, {
+      route: pathname,
+      requestId: (error as { requestId?: string }).requestId,
+    });
+  }, [error, pathname]);
+
   return (
     <Card>
       <h2 className="text-sm font-semibold text-red-400">{title}</h2>
