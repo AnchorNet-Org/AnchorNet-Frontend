@@ -62,7 +62,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(resolved);
 
     // Keep in sync with OS preference changes when no override is set.
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
     const handleChange = () => {
       if (loadTheme() === null) {
         const next: Theme = mq.matches ? "dark" : "light";

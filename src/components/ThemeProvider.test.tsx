@@ -91,6 +91,21 @@ describe("ThemeProvider", () => {
     expect(screen.getByTestId("override")).toHaveTextContent("false");
   });
 
+  it("falls back to light when matchMedia is unavailable", () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: undefined,
+    });
+
+    render(
+      <ThemeProvider>
+        <ThemeStatus />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+  });
+
   it("toggles, persists, and applies an explicit theme", () => {
     const saveTheme = vi.spyOn(themeLib, "saveTheme");
     const applyTheme = vi.spyOn(themeLib, "applyTheme");
