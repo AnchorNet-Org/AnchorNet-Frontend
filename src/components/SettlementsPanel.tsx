@@ -66,6 +66,16 @@ export function SettlementsPanel() {
   );
   const pageSize = parsePageSize(rawPageSize);
 
+  // If the URL carried an invalid pageSize (e.g. an old bookmark or a
+  // hand-edited value), correct the querystring to reflect the effective page
+  // size actually being used, so the address bar no longer diverges from what
+  // is displayed and fetched. Writing the default value clears the param.
+  useEffect(() => {
+    if (String(pageSize) !== rawPageSize) {
+      setRawPageSize(String(pageSize));
+    }
+  }, [pageSize, rawPageSize, setRawPageSize]);
+
   const reload = useCallback(() => {
     setState({ status: "loading" });
     setNonce((n) => n + 1);

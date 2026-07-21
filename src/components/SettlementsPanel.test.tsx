@@ -487,6 +487,39 @@ describe("SettlementsPanel", () => {
     );
   });
 
+  it("corrects the URL when the pageSize param is invalid", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The effective page size is the default (10), so the invalid param is
+    // written back — and since 10 is the default it is stripped entirely,
+    // leaving a clean URL instead of the misleading pageSize=999.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/settlements", {
+        scroll: false,
+      }),
+    );
+    // The selector reflects the effective value.
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("10");
+  });
+
+  it("does not rewrite the URL when the pageSize param is already valid", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // A valid value is respected exactly; no correction is written.
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("removes the pageSize param from the URL when set to the default", async () => {
     mockSearchParamsString = "pageSize=25";
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
