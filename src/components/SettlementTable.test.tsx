@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { SettlementTable } from "./SettlementTable";
 import { Settlement } from "@/lib/types";
+import { formatAmount } from "@/lib/format";
 
 function settlement(overrides: Partial<Settlement>): Settlement {
   return {
@@ -75,5 +76,21 @@ describe("SettlementTable sorting", () => {
 
     fireEvent.click(screen.getByLabelText("Sort by Amount"));
     expect(header).toHaveAttribute("aria-sort", "descending");
+  });
+});
+
+describe("SettlementTable mobile layout", () => {
+  it("renders a card for each settlement with correct data", () => {
+    render(<SettlementTable settlements={settlements} />);
+    const cards = screen.getAllByTestId("settlement-card");
+    expect(cards).toHaveLength(settlements.length);
+    settlements.forEach((s) => {
+      const card = screen.getByText(`Settlement #${s.id}`).closest("div");
+      expect(card).toBeInTheDocument();
+      expect(within(card!).getByText(s.anchor)).toBeInTheDocument();
+      expect(within(card!).getByText(s.asset)).toBeInTheDocument();
+      expect(within(card!).getByText(formatAmount(s.amount))).toBeInTheDocument();
+      expect(within(card!).getByText(formatAmount(s.fee))).toBeInTheDocument();
+    });
   });
 });
