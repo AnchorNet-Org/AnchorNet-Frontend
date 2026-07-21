@@ -167,6 +167,25 @@ describe("SettlementsPanel", () => {
     }
   });
 
+  it("filters the list by settlement status", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([
+        sample,
+        { ...sample, id: 2, anchor: "anchorB", status: "executed" },
+      ]),
+    );
+
+    renderPanel();
+    await screen.findAllByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "executed" },
+    });
+
+    await waitFor(() => expect(screen.queryAllByText("anchorA")).toHaveLength(0));
+    expect(screen.getAllByText("anchorB").length).toBeGreaterThan(0);
+  });
+
   it("shows the no-data empty state without a clear-filters action", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([]));
 
