@@ -10,7 +10,9 @@ const pools: Pool[] = [
 ];
 
 function assetCells() {
-  const rows = screen.getAllByRole("row").slice(1); // skip the header row
+  // Only look at tbody rows (skip the thead header and tfoot totals row)
+  const tbody = document.querySelector("tbody")!;
+  const rows = within(tbody).getAllByRole("row");
   return rows.map((row) => within(row).getAllByRole("cell")[0].textContent);
 }
 
@@ -62,5 +64,28 @@ describe("PoolTable", () => {
 
     fireEvent.click(screen.getByLabelText("Sort by Asset"));
     expect(header).toHaveAttribute("aria-sort", "descending");
+  });
+
+  it("renders a totals row summing liquidity and anchor count", () => {
+    render(<PoolTable pools={pools} />);
+    // XLM(300) + USDC(100) + EURC(200) = 600; anchors 2+5+1 = 8
+    const tfoot = document.querySelector("tfoot");
+    expect(tfoot).toBeInTheDocument();
+    expect(tfoot).toHaveTextContent("Total");
+    expect(tfoot).toHaveTextContent("600");
+    expect(tfoot).toHaveTextContent("8 anchors");
+  });
+
+  it("omits the totals row when there are no pools", () => {
+    render(<PoolTable pools={[]} />);
+    expect(document.querySelector("tfoot")).not.toBeInTheDocument();
+  });
+
+  it("totals row reflects the filtered pool list passed in", () => {
+    const filtered = [pools[0], pools[2]]; // XLM(300,2) + EURC(200,1)
+    render(<PoolTable pools={filtered} />);
+    const tfoot = document.querySelector("tfoot");
+    expect(tfoot).toHaveTextContent("500");
+    expect(tfoot).toHaveTextContent("3 anchors");
   });
 });

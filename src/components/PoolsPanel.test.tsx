@@ -29,7 +29,8 @@ describe("PoolsPanel", () => {
     expect(await screen.findByText("USDC")).toBeInTheDocument();
     expect(screen.getByText("EURC")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument(); // Assets stat card
-    expect(screen.getByText("1,500")).toBeInTheDocument(); // total liquidity
+    // "1,500" now appears in both the Total liquidity StatCard and the tfoot row
+    expect(screen.getAllByText("1,500").length).toBeGreaterThanOrEqual(1);
   });
 
   it("focuses the search box when / is pressed", async () => {
