@@ -147,20 +147,29 @@ describe("SettlementsPanel", () => {
     expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
-  it("loads more settlements and appends them", async () => {
+  it("footer reflects filtered count after loading all pages and applying search", async () => {
+    // First page returns one settlement, second page returns another
     vi.mocked(fetchSettlements)
       .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
       .mockResolvedValueOnce(
-        page([{ ...sample, id: 2 }], { page: 2, totalPages: 2, total: 2 }),
+        page([{ ...sample, id: 2, anchor: "other" }], { page: 2, totalPages: 2, total: 2 }),
       );
 
     renderPanel();
     await screen.findByText("anchorA");
 
+    // Load the second page
     fireEvent.click(screen.getByRole("button", { name: /load more/i }));
-
     await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
-    expect(screen.getAllByText("anchorA")).toHaveLength(2);
+    // Both rows should be visible now
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByText("other")).toBeInTheDocument();
+
+    // Apply a search that matches only the first settlement
+    fireEvent.change(screen.getByLabelText("Search settlements"), { target: { value: "anchorA" } });
+
+    // Footer should reflect filtered count (1)
+    expect(await screen.findByText(/showing all 1 settlement/i)).toBeInTheDocument();
   });
 
   it("shows a summary once every settlement is loaded", async () => {

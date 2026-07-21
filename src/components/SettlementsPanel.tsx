@@ -166,6 +166,9 @@ export function SettlementsPanel() {
         )
       : [];
 
+  // Determine count to display in the footer
+  const displayCount = query.trim() ? visibleSettlements.length : state.pagination.total;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -245,7 +248,7 @@ export function SettlementsPanel() {
               </div>
             ) : state.settlements.length > 0 ? (
               <p className="mt-4 text-center text-xs text-zinc-500">
-                Showing all {pluralize(state.pagination.total, "settlement")}
+                Showing all {pluralize(displayCount, "settlement")}
               </p>
             ) : null}
           </>
