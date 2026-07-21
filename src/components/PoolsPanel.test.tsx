@@ -132,7 +132,7 @@ describe("PoolsPanel", () => {
     });
 
     expect(
-      screen.getByText("No pools match your search."),
+      await screen.findByText("No pools match your search."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/no liquidity pools yet/i),
@@ -140,7 +140,7 @@ describe("PoolsPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(await screen.findByText("USDC")).toBeInTheDocument();
     expect(screen.getByLabelText("Search pools")).toHaveValue("");
   });
 
