@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 import { AnchorsPanel } from "@/components/AnchorsPanel";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
@@ -11,9 +11,7 @@ export const metadata: Metadata = {
 
 export default function AnchorsPage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-6 py-12">
+    <PageShell>
         <h1 className="text-2xl font-bold tracking-tight text-white">Anchors</h1>
         <p className="mt-1 text-sm text-zinc-400">
           Approved anchors that provide liquidity to the network.
@@ -25,7 +23,6 @@ export default function AnchorsPage() {
             <AnchorsPanel />
           </Suspense>
         </div>
-      </main>
-    </div>
+    </PageShell>
   );
 }
