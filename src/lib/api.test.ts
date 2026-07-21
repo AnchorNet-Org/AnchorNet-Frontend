@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fetchPools, requestQuote, apiRequest, ApiRequestError } from "./api";
+import {
+  fetchPools,
+  requestQuote,
+  apiRequest,
+  ApiRequestError,
+  buildQueryParams,
+} from "./api";
 
 function mockFetch(status: number, body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -91,5 +97,74 @@ describe("requestQuote", () => {
     await expect(
       requestQuote({ asset: "USDC", amount: 999999 }),
     ).rejects.toMatchObject({ code: "INSUFFICIENT_LIQUIDITY" });
+  });
+});
+
+describe("buildQueryParams", () => {
+  it("returns an empty string for an empty params object", () => {
+    expect(buildQueryParams({})).toBe("");
+  });
+
+  it("returns an empty string when all values are undefined", () => {
+    expect(buildQueryParams({ a: undefined, b: undefined })).toBe("");
+  });
+
+  it("builds a single query parameter", () => {
+    expect(buildQueryParams({ anchor: "a" })).toBe("?anchor=a");
+  });
+
+  it("builds multiple query parameters", () => {
+    expect(buildQueryParams({ anchor: "a", page: 1, pageSize: 20 })).toBe(
+      "?anchor=a&page=1&pageSize=20",
+    );
+  });
+
+  it("skips undefined values while including defined ones", () => {
+    expect(
+      buildQueryParams({ anchor: "a", page: undefined, pageSize: 20 }),
+    ).toBe("?anchor=a&pageSize=20");
+  });
+
+  it("converts number values to strings", () => {
+    const result = buildQueryParams({ page: 5 });
+    expect(result).toBe("?page=5");
+  });
+
+  it("handles string values that need encoding", () => {
+    expect(buildQueryParams({ name: "hello world" })).toBe("?name=hello+world");
+  });
+
+  it("preserves order of insertion", () => {
+    const result = buildQueryParams({ a: "1", b: "2", c: "3" });
+    expect(result).toBe("?a=1&b=2&c=3");
+  });
+
+  it("works with the same shape as FetchSettlementsOptions", () => {
+    const options: Record<string, string | number | undefined> = {
+      anchor: "test-anchor",
+      page: 2,
+      pageSize: 10,
+    };
+    expect(buildQueryParams(options)).toBe(
+      "?anchor=test-anchor&page=2&pageSize=10",
+    );
+  });
+
+  it("matches the behaviour of the original inline URLSearchParams logic", () => {
+    // This test replicates the pattern from the original fetchSettlements
+    // to confirm the extracted helper produces identical output.
+    const { anchor, page, pageSize } = { anchor: "a", page: 1, pageSize: 20 };
+    const query = buildQueryParams({ anchor, page, pageSize });
+    expect(query).toBe("?anchor=a&page=1&pageSize=20");
+  });
+
+  it("matches empty-options behaviour of the original logic", () => {
+    const { anchor, page, pageSize } = {
+      anchor: undefined,
+      page: undefined,
+      pageSize: undefined,
+    } as Record<string, undefined>;
+    const query = buildQueryParams({ anchor, page, pageSize });
+    expect(query).toBe("");
   });
 });
