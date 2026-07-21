@@ -182,7 +182,7 @@ export function SettlementsPanel() {
         ) : (
           <>
             {state.settlements.length > 0 ? (
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <div role="search" aria-label="Settlements export, page size, and search" className="mb-3 flex flex-wrap items-center justify-end gap-2">
                 <button
                   onClick={handleExport}
                   disabled={exporting}
