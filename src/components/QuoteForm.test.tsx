@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QuoteForm } from "./QuoteForm";
-import { requestQuote } from "@/lib/api";
+import { ApiRequestError, requestQuote } from "@/lib/api";
 
-vi.mock("@/lib/api", () => ({
-  requestQuote: vi.fn(),
-  // fetchPools is not called when knownAssets prop is supplied
-  fetchPools: vi.fn().mockResolvedValue([]),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    requestQuote: vi.fn(),
+    // fetchPools is not called when knownAssets prop is supplied
+    fetchPools: vi.fn().mockResolvedValue([]),
+  };
+});
 
 describe("QuoteForm", () => {
   afterEach(() => {
@@ -97,6 +101,20 @@ describe("QuoteForm", () => {
     expect(
       await screen.findByText(/insufficient liquidity/i),
     ).toBeInTheDocument();
+  });
+
+  it("shows a calm retry message when quote requests are rate-limited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new ApiRequestError(429, "RATE_LIMITED", "too many requests"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+
+    expect(
+      await screen.findByText("You're quoting too quickly — try again in a moment."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("too many requests")).not.toBeInTheDocument();
   });
 
   it("shows a generic message when the API rejects with a non-Error", async () => {

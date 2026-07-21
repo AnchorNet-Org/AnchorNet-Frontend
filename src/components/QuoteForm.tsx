@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Quote } from "@/lib/types";
-import { fetchPools, requestQuote } from "@/lib/api";
+import { ApiRequestError, fetchPools, requestQuote } from "@/lib/api";
 import { feeInBps, formatAmount } from "@/lib/format";
 import { Card } from "./Card";
 import { CopyButton } from "./CopyButton";
@@ -59,7 +59,12 @@ export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
       const quote = await requestQuote({ asset: asset.trim(), amount: numeric });
       setResult({ status: "ready", quote });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Quote failed.";
+      const message =
+        err instanceof ApiRequestError && err.status === 429
+          ? "You're quoting too quickly — try again in a moment."
+          : err instanceof Error
+            ? err.message
+            : "Quote failed.";
       setResult({ status: "error", message });
     }
   }
