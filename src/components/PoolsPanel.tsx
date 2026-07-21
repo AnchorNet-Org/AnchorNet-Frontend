@@ -6,6 +6,7 @@ import { fetchPools } from "@/lib/api";
 import { formatAmount } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
+import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
 import { StatCard } from "./StatCard";
 import { PoolTable } from "./PoolTable";
@@ -22,7 +23,7 @@ type LoadState =
 export function PoolsPanel() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [nonce, setNonce] = useState(0);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryState("q", "");
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
