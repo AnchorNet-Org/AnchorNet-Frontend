@@ -14,6 +14,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api", () => ({
   fetchPools: vi.fn(),
+  isAbortError: (err: unknown) =>
+    err instanceof DOMException && err.name === "AbortError",
 }));
 
 beforeEach(() => {
