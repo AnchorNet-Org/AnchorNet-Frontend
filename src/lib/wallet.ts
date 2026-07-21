@@ -16,6 +16,9 @@ const STORAGE_KEY = "anchornet:wallet";
 /** localStorage key for the per-session random seed. */
 const SEED_STORAGE_KEY = "anchornet:wallet:seed";
 
+/** Stellar public key shape: "G" followed by 55 uppercase alphanumeric characters. */
+const STELLAR_ADDRESS_PATTERN = /^G[A-Z0-9]{55}$/;
+
 /** Persists the connected wallet account so it survives a page refresh. */
 export function saveAccount(account: WalletAccount): void {
   if (typeof window === "undefined") return;
@@ -30,6 +33,7 @@ export function loadAccount(): WalletAccount | null {
   try {
     const parsed = JSON.parse(raw) as Partial<WalletAccount>;
     if (typeof parsed.address !== "string") return null;
+    if (!STELLAR_ADDRESS_PATTERN.test(parsed.address)) return null;
     return { address: parsed.address };
   } catch {
     return null;
