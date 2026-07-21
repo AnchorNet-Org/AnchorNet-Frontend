@@ -12,8 +12,27 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * Dark mode variables.
+ *
+ * Two selectors handle dark mode:
+ *   1. `[data-theme="dark"]` – set by the JS toggle (and the anti-flash
+ *      inline script in layout.tsx) so the user's stored preference wins.
+ *   2. `.dark` – Tailwind's dark-mode class strategy; kept in sync with
+ *      data-theme by applyTheme() in lib/theme.ts.
+ *   3. `@media (prefers-color-scheme: dark)` with no stored override (i.e.
+ *      when neither `data-theme` nor `.dark` has been set by JS) – this
+ *      remains as a CSS-only fallback for the brief window before the
+ *      inline script executes and for environments without JS.
+ */
+[data-theme="dark"],
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
