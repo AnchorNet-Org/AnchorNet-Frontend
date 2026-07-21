@@ -2,11 +2,12 @@
  * Presentation helpers for formatting amounts and labels.
  */
 
-/** Formats an integer amount with thousands separators (e.g. 1234567 -> "1,234,567"). */
+/** Formats an amount with thousands separators and up to 7 fractional digits (e.g. 1234.5678 -> "1,234.5678", 1000 -> "1,000"). */
 export function formatAmount(amount: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(
-    amount,
-  );
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 7,
+    minimumFractionDigits: 0,
+  }).format(amount);
 }
 
 /** Formats a count with a pluralized noun (e.g. (1, "anchor") -> "1 anchor"). */

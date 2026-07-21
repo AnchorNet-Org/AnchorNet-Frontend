@@ -16,7 +16,12 @@ interface FormErrors {
 }
 
 /** Validates the settlement fields, returning field-level error messages. */
-function validate(anchor: string, asset: string, amount: string, availableLiquidity?: Record<string, number>): FormErrors {
+function validate(
+  anchor: string,
+  asset: string,
+  amount: string,
+  availableLiquidity?: Record<string, number>,
+): FormErrors {
   const errors: FormErrors = {};
   if (anchor.trim() === "") errors.anchor = "Anchor id is required.";
   if (asset.trim() === "") errors.asset = "Asset is required.";
@@ -26,11 +31,9 @@ function validate(anchor: string, asset: string, amount: string, availableLiquid
     errors.amount = "Enter a valid amount.";
   } else if (numeric <= 0) {
     errors.amount = "Amount must be greater than zero.";
-  } else if (availableLiquidity) {
-    const normalizedAsset = asset.trim().toUpperCase();
-    const available = availableLiquidity[normalizedAsset];
-    if (available !== undefined && numeric > available) {
-      errors.amount = `Insufficient liquidity: only ${available} ${normalizedAsset} available.`;
+  } else if (availableLiquidity && asset in availableLiquidity) {
+    if (numeric > availableLiquidity[asset]) {
+      errors.amount = "Amount exceeds available liquidity.";
     }
   }
   return errors;
@@ -44,7 +47,6 @@ export function SettlementForm({
 }: {
   onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
   pending?: boolean;
-  /** Optional mapping of asset code (uppercase) to available liquidity amount */
   availableLiquidity?: Record<string, number>;
 }) {
   const [anchor, setAnchor] = useState("");
@@ -53,6 +55,9 @@ export function SettlementForm({
   const [errors, setErrors] = useState<FormErrors>({});
 
   const anchorRef = useRef<HTMLInputElement>(null);
+  const anchorErrorId = "settlement-anchor-error";
+  const assetErrorId = "settlement-asset-error";
+  const amountErrorId = "settlement-amount-error";
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -69,11 +74,6 @@ export function SettlementForm({
     setErrors({});
   }
 
-  /**
-   * Resets all field values, touched state, and errors back to the initial
-   * state without triggering any network request. Focus is returned to the
-   * first field so keyboard users can immediately start over.
-   */
   function reset() {
     setAnchor("");
     setAsset("USDC");
@@ -83,10 +83,11 @@ export function SettlementForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div>
         <input
           ref={anchorRef}
+          id="settlement-anchor"
           value={anchor}
           onChange={(e) => {
             setAnchor(e.target.value);
@@ -94,14 +95,18 @@ export function SettlementForm({
           }}
           placeholder="Anchor id"
           aria-invalid={Boolean(errors.anchor)}
+          aria-describedby={errors.anchor ? anchorErrorId : undefined}
           className={errors.anchor ? invalidInputClass : inputClass}
         />
         {errors.anchor ? (
-          <p className="mt-1 text-xs text-red-400">{errors.anchor}</p>
+          <p id={anchorErrorId} className="mt-1 text-xs text-red-400">
+            {errors.anchor}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-asset"
           value={asset}
           onChange={(e) => {
             setAsset(e.target.value);
@@ -109,14 +114,18 @@ export function SettlementForm({
           }}
           placeholder="Asset"
           aria-invalid={Boolean(errors.asset)}
+          aria-describedby={errors.asset ? assetErrorId : undefined}
           className={errors.asset ? invalidInputClass : inputClass}
         />
         {errors.asset ? (
-          <p className="mt-1 text-xs text-red-400">{errors.asset}</p>
+          <p id={assetErrorId} className="mt-1 text-xs text-red-400">
+            {errors.asset}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-amount"
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
@@ -125,10 +134,13 @@ export function SettlementForm({
           inputMode="numeric"
           placeholder="Amount"
           aria-invalid={Boolean(errors.amount)}
+          aria-describedby={errors.amount ? amountErrorId : undefined}
           className={errors.amount ? invalidInputClass : inputClass}
         />
         {errors.amount ? (
-          <p className="mt-1 text-xs text-red-400">{errors.amount}</p>
+          <p id={amountErrorId} className="mt-1 text-xs text-red-400">
+            {errors.amount}
+          </p>
         ) : null}
       </div>
       <div className="flex gap-2">
@@ -149,4 +161,4 @@ export function SettlementForm({
       </div>
     </form>
   );
-}
+      }

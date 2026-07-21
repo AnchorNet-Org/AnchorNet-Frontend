@@ -29,7 +29,7 @@ export function SettlementDetail({
     (signal: AbortSignal) => fetchSettlement(id, signal),
     [id],
   );
-  const { state, reload } = useAsync(
+  const { state, refresh } = useAsync(
     load,
     initialData ? { status: "ready", data: initialData } : undefined,
   );
@@ -40,7 +40,7 @@ export function SettlementDetail({
     try {
       await action();
       notify("success", successMessage);
-      reload();
+      await refresh();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
     }

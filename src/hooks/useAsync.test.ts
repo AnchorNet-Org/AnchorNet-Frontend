@@ -82,7 +82,6 @@ describe("useAsync", () => {
     });
 
     it("does not set error state when reload aborts the previous request", async () => {
-      let resolveFirst!: (v: string) => void;
       let callCount = 0;
 
       const load = vi.fn().mockImplementation(
@@ -91,7 +90,6 @@ describe("useAsync", () => {
             callCount++;
             if (callCount === 1) {
               // First call: hang until aborted.
-              resolveFirst = resolve;
               signal.addEventListener("abort", () =>
                 reject(new DOMException("aborted", "AbortError")),
               );

@@ -179,4 +179,34 @@ describe("ConfirmDialog", () => {
     fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
     expect(screen.getByText("Confirm")).toHaveFocus();
   });
+
+  it("calls onCancel when the backdrop is clicked", () => {
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="t"
+        message="m"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.click(screen.getByRole("alertdialog").parentElement as HTMLElement);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onCancel when clicking inside the dialog panel", () => {
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="t"
+        message="m"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.click(screen.getByRole("alertdialog"));
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 });
