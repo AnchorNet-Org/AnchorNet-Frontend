@@ -78,8 +78,8 @@ async function doFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const headers: Record<string, string> = { ...(init?.headers as object) };
-  if (init?.body) headers["Content-Type"] = "application/json";
+  const headers = new Headers(init?.headers);
+  if (init?.body) headers.set("Content-Type", "application/json");
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 

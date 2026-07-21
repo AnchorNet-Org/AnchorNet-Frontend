@@ -52,10 +52,25 @@ describe("apiRequest", () => {
     await apiRequest("/x", { method: "POST", body: JSON.stringify({ a: 1 }) });
 
     const init = fn.mock.calls[0][1] as RequestInit;
-    expect((init.headers as Record<string, string>)["Content-Type"]).toBe(
-      "application/json",
-    );
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
   });
+
+  it.each([
+    ["plain object", { "X-Custom-Header": "preserved" }],
+    ["Headers instance", new Headers({ "X-Custom-Header": "preserved" })],
+    ["tuple array", [["X-Custom-Header", "preserved"]] as [string, string][]],
+  ] satisfies Array<[string, HeadersInit]>)(
+    "forwards headers passed as a %s",
+    async (_label, headers) => {
+      const fn = mockFetch(200, {});
+      vi.stubGlobal("fetch", fn);
+
+      await apiRequest("/x", { headers });
+
+      const init = fn.mock.calls[0][1] as RequestInit;
+      expect(new Headers(init.headers).get("X-Custom-Header")).toBe("preserved");
+    },
+  );
 
   it("throws ApiRequestError carrying the error code", async () => {
     vi.stubGlobal(
