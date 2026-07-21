@@ -280,3 +280,107 @@ describe("apiTextRequest — retry on 5xx", () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("apiRequest — retry on network failure", () => {
+  it("retries a network failure and succeeds on second attempt", async () => {
+    let call = 0;
+    const fn = vi.fn().mockImplementation(() => {
+      call++;
+      if (call === 1) {
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: { get: () => null },
+        json: async () => ({ ok: true }),
+      });
+    });
+    vi.stubGlobal("fetch", fn);
+
+    const promise = apiRequest<{ ok: boolean }>("/x");
+    await vi.advanceTimersByTimeAsync(500);
+    const result = await promise;
+
+    expect(result.ok).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("exhausts retries and throws network error after 3 attempts", async () => {
+    const networkErr = new TypeError("Failed to fetch");
+    const fn = vi.fn().mockRejectedValue(networkErr);
+    vi.stubGlobal("fetch", fn);
+
+    const promise = apiRequest("/x").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const err = await promise;
+    expect(err).toBe(networkErr);
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry network failure for non-idempotent request (POST)", async () => {
+    const networkErr = new TypeError("Failed to fetch");
+    const fn = vi.fn().mockRejectedValue(networkErr);
+    vi.stubGlobal("fetch", fn);
+
+    await expect(
+      apiRequest("/x", { method: "POST", body: JSON.stringify({}) }),
+    ).rejects.toBe(networkErr);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry when fetch rejects with AbortError", async () => {
+    const abortErr = new DOMException("signal is aborted", "AbortError");
+    const fn = vi.fn().mockRejectedValue(abortErr);
+    vi.stubGlobal("fetch", fn);
+
+    await expect(apiRequest("/x")).rejects.toBe(abortErr);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("apiTextRequest — retry on network failure", () => {
+  it("retries a network failure and succeeds", async () => {
+    let call = 0;
+    const fn = vi.fn().mockImplementation(() => {
+      call++;
+      if (call === 1) {
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: { get: () => null },
+        json: async () => "csv-data",
+        text: async () => "csv-data",
+      });
+    });
+    vi.stubGlobal("fetch", fn);
+
+    const promise = apiTextRequest("/export");
+    await vi.advanceTimersByTimeAsync(500);
+    const result = await promise;
+
+    expect(result).toBe("csv-data");
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it("exhausts retries and throws network error after 3 attempts", async () => {
+    const networkErr = new TypeError("Failed to fetch");
+    const fn = vi.fn().mockRejectedValue(networkErr);
+    vi.stubGlobal("fetch", fn);
+
+    const promise = apiTextRequest("/export").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const err = await promise;
+    expect(err).toBe(networkErr);
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
+
