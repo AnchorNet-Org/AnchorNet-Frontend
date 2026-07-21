@@ -77,3 +77,37 @@ describe("SettlementTable sorting", () => {
     expect(header).toHaveAttribute("aria-sort", "descending");
   });
 });
+
+describe("SettlementTable per-row in-flight actions", () => {
+  it("disables Execute and Cancel buttons only for pending settlement IDs", () => {
+    const onExecute = () => {};
+    const onCancel = () => {};
+    render(
+      <SettlementTable
+        settlements={settlements}
+        onExecute={onExecute}
+        onCancel={onCancel}
+        pendingIds={new Set([2])}
+      />,
+    );
+
+    const rows = within(document.querySelector("tbody")!).getAllByRole("row");
+    const row1Execute = within(rows[0]).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(rows[0]).getByRole("button", { name: "Cancel" });
+
+    const row2Execute = within(rows[1]).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(rows[1]).getByRole("button", { name: "Cancel" });
+
+    const row3Execute = within(rows[2]).getByRole("button", { name: "Execute" });
+    const row3Cancel = within(rows[2]).getByRole("button", { name: "Cancel" });
+
+    expect(row1Execute).not.toBeDisabled();
+    expect(row1Cancel).not.toBeDisabled();
+
+    expect(row2Execute).toBeDisabled();
+    expect(row2Cancel).toBeDisabled();
+
+    expect(row3Execute).not.toBeDisabled();
+    expect(row3Cancel).not.toBeDisabled();
+  });
+});
