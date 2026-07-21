@@ -17,17 +17,30 @@ function settlement(overrides: Partial<Settlement>): Settlement {
 }
 
 const settlements: Settlement[] = [
-  settlement({ id: 1, amount: 300 }),
-  settlement({ id: 2, amount: 100 }),
-  settlement({ id: 3, amount: 200 }),
+  settlement({ id: 1, amount: 300, fee: 3 }),
+  settlement({ id: 2, amount: 100, fee: 1 }),
+  settlement({ id: 3, amount: 200, fee: 2 }),
 ];
 
 function amountCells() {
-  const rows = screen.getAllByRole("row").slice(1); // skip the header row
+  const rows = within(document.querySelector("tbody")!).getAllByRole("row");
   return rows.map((row) => within(row).getAllByRole("cell")[3].textContent);
 }
 
 describe("SettlementTable sorting", () => {
+  it("shows the amount and fee totals for the visible rows", () => {
+    render(<SettlementTable settlements={settlements} />);
+
+    const totalRow = screen.getByText("Total (visible rows)").closest("tr");
+    expect(totalRow).not.toBeNull();
+    expect(within(totalRow!).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "Total (visible rows)",
+      "600",
+      "6",
+      "",
+    ]);
+  });
+
   it("renders rows in their original order by default", () => {
     render(<SettlementTable settlements={settlements} />);
     expect(amountCells()).toEqual(["300", "100", "200"]);

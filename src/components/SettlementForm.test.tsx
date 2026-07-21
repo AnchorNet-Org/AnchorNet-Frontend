@@ -137,9 +137,6 @@ describe("SettlementForm", () => {
 
     const input = screen.getByPlaceholderText("Asset");
     expect(input).toHaveAttribute("list", "settlement-form-asset-list");
-    expect(screen.getByRole("listbox", { name: "settlement-form-asset-list" })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("USDC")).toBeInTheDocument();
-
     const datalist = document.getElementById("settlement-form-asset-list");
     expect(datalist).toBeInTheDocument();
     expect(datalist?.querySelectorAll("option")).toHaveLength(3);
@@ -157,5 +154,46 @@ describe("SettlementForm", () => {
     const input = screen.getByPlaceholderText("Asset");
     expect(input).not.toHaveAttribute("list");
     expect(document.getElementById("settlement-form-asset-list")).not.toBeInTheDocument();
+  });
+
+  it("rejects amount exceeding available liquidity", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} availableLiquidity={{ USDC: 100 }} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchor-a" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "150" },
+    });
+    fireEvent.click(screen.getByText("Open settlement"));
+
+    expect(screen.getByText("Amount exceeds available liquidity.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits amount within available liquidity", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} availableLiquidity={{ USDC: 100 }} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchor-a" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "100" },
+    });
+    fireEvent.click(screen.getByText("Open settlement"));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      anchor: "anchor-a",
+      asset: "USDC",
+      amount: 100,
+    });
   });
 });

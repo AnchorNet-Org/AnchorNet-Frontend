@@ -9,9 +9,12 @@ export default defineConfig({
     css: false,
     coverage: {
       provider: "v8",
-      // This issue's contract is that ToastProvider's pause/resume timing is
-      // correct; enforce it with a hard 95% floor on the file under test.
-      include: ["src/components/ToastProvider.tsx"],
+      // Provider and hook coverage is kept to the repository's 95% standard.
+      include: [
+        "src/components/ThemeProvider.tsx",
+        "src/hooks/useTheme.ts",
+        "src/components/ToastProvider.tsx",
+      ],
       thresholds: {
         statements: 95,
         branches: 95,

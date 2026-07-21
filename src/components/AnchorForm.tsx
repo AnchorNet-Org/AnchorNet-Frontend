@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useRef, useState, useEffect } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
@@ -32,23 +32,35 @@ function validate(id: string): FormErrors {
 export function AnchorForm({
   onSubmit,
   pending,
+  serverError,
 }: {
-  onSubmit: (input: { id: string; name?: string }) => void;
+  onSubmit: (input: { id: string; name?: string }) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
+  serverError?: string;
 }) {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
+  useEffect(() => {
+    if (serverError) {
+      // Mirrors an externally supplied server validation error into the form.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setErrors((prev) => ({ ...prev, id: serverError }));
+    }
+  }, [serverError]);
+
   const idRef = useRef<HTMLInputElement>(null);
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const nextErrors = validate(id);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSubmit({ id: id.trim(), name: name.trim() || undefined });
+    const result = await onSubmit({ id: id.trim(), name: name.trim() || undefined });
+    if (result === false) return;
+
     setId("");
     setName("");
     setErrors({});

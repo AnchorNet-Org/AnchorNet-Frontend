@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AnchorForm } from "./AnchorForm";
 
 describe("AnchorForm", () => {
@@ -28,8 +28,8 @@ describe("AnchorForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("submits the trimmed id and optional name, then resets the form", () => {
-    const onSubmit = vi.fn();
+  it("submits the trimmed id and optional name, then resets the form", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
     render(<AnchorForm onSubmit={onSubmit} />);
 
     const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
@@ -38,12 +38,14 @@ describe("AnchorForm", () => {
     fireEvent.change(nameInput, { target: { value: " Example Anchor " } });
     fireEvent.click(screen.getByText("Register"));
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      id: "anchor.example.org",
-      name: "Example Anchor",
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        id: "anchor.example.org",
+        name: "Example Anchor",
+      });
+      expect(idInput).toHaveValue("");
+      expect(nameInput).toHaveValue("");
     });
-    expect(idInput).toHaveValue("");
-    expect(nameInput).toHaveValue("");
   });
 
   it("disables the submit button while pending", () => {
@@ -101,5 +103,25 @@ describe("AnchorForm", () => {
     fireEvent.click(screen.getByText("Reset"));
 
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("displays an externally-supplied serverError", () => {
+    render(<AnchorForm onSubmit={vi.fn()} serverError="Duplicate ID" />);
+    expect(screen.getByText("Duplicate ID")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Anchor id (account or domain)")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not reset the form when onSubmit returns false", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(false);
+    render(<AnchorForm onSubmit={onSubmit} />);
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "valid-anchor" } });
+    fireEvent.click(screen.getByText("Register"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+      expect(idInput).toHaveValue("valid-anchor");
+    });
   });
 });

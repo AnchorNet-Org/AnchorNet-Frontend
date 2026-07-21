@@ -48,12 +48,25 @@ describe("metricsApi", () => {
     expect(fn.mock.calls[0][1].signal).toBe(controller.signal);
   });
 
-  it("surfaces a server error", async () => {
+  it("propagates API error status, code, and message", async () => {
     vi.stubGlobal(
       "fetch",
-      mockFetch(500, { error: { code: "INTERNAL", message: "boom" } }),
+      mockFetch(503, {
+        error: {
+          code: "METRICS_UNAVAILABLE",
+          message: "Metrics service is temporarily unavailable",
+        },
+      }),
     );
 
-    await expect(fetchMetrics()).rejects.toBeInstanceOf(ApiRequestError);
+    const error = await fetchMetrics().catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({
+      name: "ApiRequestError",
+      status: 503,
+      code: "METRICS_UNAVAILABLE",
+      message: "Metrics service is temporarily unavailable",
+    });
   });
 });

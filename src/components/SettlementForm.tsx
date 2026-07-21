@@ -17,7 +17,12 @@ interface FormErrors {
 }
 
 /** Validates the settlement fields, returning field-level error messages. */
-function validate(anchor: string, asset: string, amount: string): FormErrors {
+function validate(
+  anchor: string,
+  asset: string,
+  amount: string,
+  availableLiquidity?: Record<string, number>,
+): FormErrors {
   const errors: FormErrors = {};
   if (anchor.trim() === "") errors.anchor = "Anchor id is required.";
   if (asset.trim() === "") errors.asset = "Asset is required.";
@@ -27,6 +32,10 @@ function validate(anchor: string, asset: string, amount: string): FormErrors {
     errors.amount = "Enter a valid amount.";
   } else if (numeric <= 0) {
     errors.amount = "Amount must be greater than zero.";
+  } else if (availableLiquidity && asset in availableLiquidity) {
+    if (numeric > availableLiquidity[asset]) {
+      errors.amount = "Amount exceeds available liquidity.";
+    }
   }
   return errors;
 }
@@ -49,10 +58,13 @@ export function SettlementForm({
   const anchorRef = useRef<HTMLInputElement>(null);
   const assetOptions = Object.keys(availableLiquidity ?? {});
   const assetListId = assetOptions.length > 0 ? ASSET_DATALIST_ID : undefined;
+  const anchorErrorId = "settlement-anchor-error";
+  const assetErrorId = "settlement-asset-error";
+  const amountErrorId = "settlement-amount-error";
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors = validate(anchor, asset, amount);
+    const nextErrors = validate(anchor, asset, amount, availableLiquidity);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -65,11 +77,6 @@ export function SettlementForm({
     setErrors({});
   }
 
-  /**
-   * Resets all field values, touched state, and errors back to the initial
-   * state without triggering any network request. Focus is returned to the
-   * first field so keyboard users can immediately start over.
-   */
   function reset() {
     setAnchor("");
     setAsset("USDC");
@@ -79,10 +86,11 @@ export function SettlementForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div>
         <input
           ref={anchorRef}
+          id="settlement-anchor"
           value={anchor}
           onChange={(e) => {
             setAnchor(e.target.value);
@@ -90,14 +98,18 @@ export function SettlementForm({
           }}
           placeholder="Anchor id"
           aria-invalid={Boolean(errors.anchor)}
+          aria-describedby={errors.anchor ? anchorErrorId : undefined}
           className={errors.anchor ? invalidInputClass : inputClass}
         />
         {errors.anchor ? (
-          <p className="mt-1 text-xs text-red-400">{errors.anchor}</p>
+          <p id={anchorErrorId} className="mt-1 text-xs text-red-400">
+            {errors.anchor}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-asset"
           value={asset}
           onChange={(e) => {
             setAsset(e.target.value);
@@ -106,6 +118,7 @@ export function SettlementForm({
           placeholder="Asset"
           list={assetListId}
           aria-invalid={Boolean(errors.asset)}
+          aria-describedby={errors.asset ? assetErrorId : undefined}
           className={errors.asset ? invalidInputClass : inputClass}
         />
         {assetOptions.length > 0 ? (
@@ -116,11 +129,14 @@ export function SettlementForm({
           </datalist>
         ) : null}
         {errors.asset ? (
-          <p className="mt-1 text-xs text-red-400">{errors.asset}</p>
+          <p id={assetErrorId} className="mt-1 text-xs text-red-400">
+            {errors.asset}
+          </p>
         ) : null}
       </div>
       <div>
         <input
+          id="settlement-amount"
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
@@ -129,10 +145,13 @@ export function SettlementForm({
           inputMode="numeric"
           placeholder="Amount"
           aria-invalid={Boolean(errors.amount)}
+          aria-describedby={errors.amount ? amountErrorId : undefined}
           className={errors.amount ? invalidInputClass : inputClass}
         />
         {errors.amount ? (
-          <p className="mt-1 text-xs text-red-400">{errors.amount}</p>
+          <p id={amountErrorId} className="mt-1 text-xs text-red-400">
+            {errors.amount}
+          </p>
         ) : null}
       </div>
       <div className="flex gap-2">
