@@ -119,6 +119,7 @@ export function SettlementsPanel() {
   }
 
   async function loadMore() {
+    if (loadingMore) return;
     if (state.status !== "ready") return;
     setLoadingMore(true);
     setMoreError(null);
