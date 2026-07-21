@@ -314,4 +314,25 @@ describe("ToastProvider", () => {
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
   });
+
+  it("does not throw or warn when dismiss is called after provider unmounts", () => {
+    let capturedDismiss: ((id: number) => void) | undefined;
+
+    function CaptureDismiss() {
+      const { dismiss } = useToast();
+      useEffect(() => {
+        capturedDismiss = dismiss;
+      }, [dismiss]);
+      return null;
+    }
+
+    const { unmount } = render(
+      <ToastProvider>
+        <CaptureDismiss />
+      </ToastProvider>,
+    );
+    unmount();
+
+    expect(() => capturedDismiss?.(1)).not.toThrow();
+  });
 });
