@@ -141,4 +141,29 @@ describe("wallet session persistence", () => {
     window.localStorage.setItem("anchornet:wallet", JSON.stringify({}));
     expect(loadAccount()).toBeNull();
   });
+
+  it("ignores an empty string address", () => {
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: "" }),
+    );
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("ignores an overly long address", () => {
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: `G${"A".repeat(100)}` }),
+    );
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("loads a well-formed Stellar-shaped address", () => {
+    const wellFormedAddress = mockAddress("well-formed-address");
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: wellFormedAddress }),
+    );
+    expect(loadAccount()).toEqual({ address: wellFormedAddress });
+  });
 });

@@ -54,11 +54,36 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
+
+  // One ref per filter button for imperative focus management (roving tabindex).
+  const filterRefs = useRef<Array<HTMLButtonElement | null>>(
+    Array(FILTERS.length).fill(null),
+  );
+
+  /** Arrow-key / Home / End roving focus across the filter button group. */
+  function onFilterKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    const last = FILTERS.length - 1;
+    let next: number | null = null;
+
+    if (event.key === "ArrowRight") next = index === last ? 0 : index + 1;
+    else if (event.key === "ArrowLeft") next = index === 0 ? last : index - 1;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = last;
+
+    if (next !== null) {
+      event.preventDefault();
+      filterRefs.current[next]?.focus();
+    }
+  }
 
   // Sync status filter and search query to the URL querystring.
   // Initial values are hydrated from the URL on first render.
@@ -80,12 +105,17 @@ export function AnchorsPanel() {
 
   async function register(input: { id: string; name?: string }) {
     setPending(true);
+    setServerError(null);
     try {
       await registerAnchor(input);
       notify("success", `Registered anchor "${input.id}".`);
       reload();
+      return true;
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Registration failed");
+      const message = err instanceof Error ? err.message : "Registration failed";
+      notify("error", message);
+      setServerError(message);
+      return false;
     } finally {
       setPending(false);
     }
@@ -107,7 +137,7 @@ export function AnchorsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Register anchor
         </h2>
-        <AnchorForm onSubmit={register} pending={pending} />
+        <AnchorForm onSubmit={register} pending={pending} serverError={serverError || undefined} />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -118,11 +148,14 @@ export function AnchorsPanel() {
           <>
             {state.data.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                {FILTERS.map((f) => (
+                {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
+                    ref={(el) => { filterRefs.current[i] = el; }}
                     onClick={() => setStatus(f.value)}
+                    onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
+                    tabIndex={filter === f.value ? 0 : -1}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       filter === f.value
                         ? "bg-emerald-600 text-white"

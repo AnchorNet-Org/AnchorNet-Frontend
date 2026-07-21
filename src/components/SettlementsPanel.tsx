@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   fetchSettlements,
   openSettlement,
@@ -8,7 +8,8 @@ import {
   cancelSettlement,
   exportSettlementsCsv,
 } from "@/lib/settlementsApi";
-import { Settlement, Pagination } from "@/lib/types";
+import { Settlement, Pagination, Pool } from "@/lib/types";
+import { fetchPools } from "@/lib/api";
 import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useToast } from "@/hooks/useToast";
@@ -51,6 +52,7 @@ export function SettlementsPanel() {
   const [pending, setPending] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
+  const [pools, setPools] = useState<Pool[]>([]);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
@@ -71,7 +73,11 @@ export function SettlementsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ status: "loading" });
+    // The "loading" transition happens at the call site that changes `nonce`
+    // or `pageSize` (reload(), changePageSize()) rather than here, since
+    // setting state synchronously in an effect body triggers a cascading
+    // re-render (react-hooks/set-state-in-effect). The initial state is
+    // already "loading" from useState's initializer above.
     fetchSettlements({ page: 1, pageSize, signal: controller.signal })
       .then(({ settlements, pagination }) =>
         setState({ status: "ready", settlements, pagination }),
@@ -86,8 +92,29 @@ export function SettlementsPanel() {
     return () => controller.abort();
   }, [nonce, pageSize]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPools(controller.signal)
+      .then(setPools)
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load pools", err);
+        }
+      });
+    return () => controller.abort();
+  }, []);
+
+  const availableLiquidity = useMemo(() => {
+    if (pools.length === 0) return undefined;
+    return pools.reduce((acc, pool) => {
+      acc[pool.asset] = pool.total;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [pools]);
+
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
+    setState({ status: "loading" });
     setRawPageSize(String(size));
   }
 
@@ -208,7 +235,7 @@ export function SettlementsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Open settlement
         </h2>
-        <SettlementForm onSubmit={open} pending={pending} />
+        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} />
       </Card>
       <Card>
         {state.status === "loading" ? (

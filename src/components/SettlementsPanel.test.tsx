@@ -15,6 +15,7 @@ import {
   cancelSettlement,
 } from "@/lib/settlementsApi";
 import { Settlement, SettlementsPage } from "@/lib/types";
+import { fetchPools } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mock next/navigation so the panel can run in jsdom.
@@ -37,9 +38,14 @@ vi.mock("@/lib/settlementsApi", () => ({
   exportSettlementsCsv: vi.fn(),
 }));
 
+vi.mock("@/lib/api", () => ({
+  fetchPools: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockSearchParamsString = "";
+  vi.mocked(fetchPools).mockResolvedValue([]);
 });
 
 function page(
@@ -257,6 +263,29 @@ describe("SettlementsPanel", () => {
         amount: 400,
       }),
     );
+  });
+
+  it("blocks opening a settlement when amount exceeds available liquidity", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(fetchPools).mockResolvedValue([{ asset: "USDC", total: 100, anchors: 1 }]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    expect(await screen.findByText("Amount exceeds available liquidity.")).toBeInTheDocument();
+    expect(openSettlement).not.toHaveBeenCalled();
   });
 
   it("updates only the executed row and announces its new status", async () => {

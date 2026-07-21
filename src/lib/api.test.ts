@@ -86,7 +86,7 @@ describe("apiRequest", () => {
       mockFetch(400, { error: { code: "ERR", message: "bad" } }),
     );
 
-    const err = await apiRequest("/x").catch((e) => e);
+    const err = (await apiRequest("/x").catch((e) => e)) as { requestId?: string };
     expect(err.requestId).toBeUndefined();
   });
 });

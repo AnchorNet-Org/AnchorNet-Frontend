@@ -16,7 +16,12 @@ interface FormErrors {
 }
 
 /** Validates the settlement fields, returning field-level error messages. */
-function validate(anchor: string, asset: string, amount: string): FormErrors {
+function validate(
+  anchor: string,
+  asset: string,
+  amount: string,
+  availableLiquidity?: Record<string, number>,
+): FormErrors {
   const errors: FormErrors = {};
   if (anchor.trim() === "") errors.anchor = "Anchor id is required.";
   if (asset.trim() === "") errors.asset = "Asset is required.";
@@ -26,6 +31,10 @@ function validate(anchor: string, asset: string, amount: string): FormErrors {
     errors.amount = "Enter a valid amount.";
   } else if (numeric <= 0) {
     errors.amount = "Amount must be greater than zero.";
+  } else if (availableLiquidity && asset in availableLiquidity) {
+    if (numeric > availableLiquidity[asset]) {
+      errors.amount = "Amount exceeds available liquidity.";
+    }
   }
   return errors;
 }
@@ -34,9 +43,11 @@ function validate(anchor: string, asset: string, amount: string): FormErrors {
 export function SettlementForm({
   onSubmit,
   pending,
+  availableLiquidity,
 }: {
   onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
   pending?: boolean;
+  availableLiquidity?: Record<string, number>;
 }) {
   const [anchor, setAnchor] = useState("");
   const [asset, setAsset] = useState("USDC");
@@ -50,7 +61,7 @@ export function SettlementForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors = validate(anchor, asset, amount);
+    const nextErrors = validate(anchor, asset, amount, availableLiquidity);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -72,7 +83,7 @@ export function SettlementForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div>
         <input
           ref={anchorRef}

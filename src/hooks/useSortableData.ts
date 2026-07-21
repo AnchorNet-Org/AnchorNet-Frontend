@@ -16,6 +16,9 @@ export interface SortState<K extends string> {
  * Clicking the same column cycles ascending -> descending -> unsorted;
  * clicking a different column always starts from ascending. `getValue`
  * extracts the comparable value for a given column key.
+ *
+ * `clearSort` resets the sort state to `null` in one call, regardless of
+ * the current sort key or direction.
  */
 export function useSortableData<T, K extends string>(
   items: T[],
@@ -25,6 +28,7 @@ export function useSortableData<T, K extends string>(
   sorted: T[];
   sort: SortState<K> | null;
   requestSort: (key: K) => void;
+  clearSort: () => void;
 } {
   const [sort, setSort] = useState<SortState<K> | null>(initial);
 
@@ -34,6 +38,10 @@ export function useSortableData<T, K extends string>(
       if (prev.direction === "asc") return { key, direction: "desc" };
       return null;
     });
+  }, []);
+
+  const clearSort = useCallback(() => {
+    setSort(null);
   }, []);
 
   const sorted = useMemo(() => {
@@ -49,5 +57,5 @@ export function useSortableData<T, K extends string>(
     });
   }, [items, sort, getValue]);
 
-  return { sorted, sort, requestSort };
+  return { sorted, sort, requestSort, clearSort };
 }
