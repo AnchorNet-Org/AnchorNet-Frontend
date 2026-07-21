@@ -5,7 +5,7 @@ import { isAbortError } from "@/lib/api";
 
 export type AsyncState<T> =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; error?: unknown }
   | { status: "ready"; data: T };
 
 /**
@@ -63,6 +63,7 @@ export function useAsync<T>(
         setState({
           status: "error",
           message: err instanceof Error ? err.message : "Request failed",
+          error: err,
         });
       })
       .finally(() => {
