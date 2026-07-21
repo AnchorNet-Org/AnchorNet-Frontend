@@ -17,8 +17,15 @@ import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
 import { AnchorTable } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+/**
+ * Delay (ms) before a paused search query is applied to the filtered list.
+ * The input itself stays bound to the immediate value, so typing never lags.
+ */
+const SEARCH_DEBOUNCE_MS = 200;
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -62,18 +69,23 @@ export function AnchorsPanel() {
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], query),
+          matchesQuery([anchor.id, anchor.name], debouncedQuery),
         )
       : [];
 
   async function register(input: { id: string; name?: string }) {
     setPending(true);
+    setServerError(null);
     try {
       await registerAnchor(input);
       notify("success", `Registered anchor "${input.id}".`);
       reload();
+      return true;
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Registration failed");
+      const message = err instanceof Error ? err.message : "Registration failed";
+      notify("error", message);
+      setServerError(message);
+      return false;
     } finally {
       setPending(false);
     }
@@ -95,7 +107,7 @@ export function AnchorsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Register anchor
         </h2>
-        <AnchorForm onSubmit={register} pending={pending} />
+        <AnchorForm onSubmit={register} pending={pending} serverError={serverError || undefined} />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -106,11 +118,12 @@ export function AnchorsPanel() {
           <>
             {state.data.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                {FILTERS.map((f) => (
+                {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
                     onClick={() => setStatus(f.value)}
                     aria-pressed={filter === f.value}
+                    tabIndex={filter === f.value ? 0 : -1}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       filter === f.value
                         ? "bg-emerald-600 text-white"
@@ -131,9 +144,14 @@ export function AnchorsPanel() {
               </div>
             ) : null}
             {filteredAnchors.length === 0 && state.data.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No anchors match this filter.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No anchors match your search or filter."
+                onClearFilters={() => {
+                  setStatus("all");
+                  setQuery("");
+                }}
+              />
             ) : (
               <AnchorTable
                 anchors={filteredAnchors}

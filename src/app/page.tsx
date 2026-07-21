@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
       <SiteHeader />
-      <main className="mx-auto max-w-3xl px-6 py-24">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl px-6 py-24">
         <h1 className="text-4xl font-bold tracking-tight text-white">
           AnchorNet
         </h1>
@@ -13,7 +13,7 @@ export default function Home() {
           Liquidity Network
         </p>
         <p className="mt-8 text-zinc-300 leading-relaxed">
-          A liquidity coordination network for Stellar anchors — efficient
+          A liquidity coordination network for Stellar anchors â€” efficient
           cross-anchor settlement and liquidity sharing. This app will integrate
           with the AnchorNet API and Stellar wallet for payments and routing.
         </p>

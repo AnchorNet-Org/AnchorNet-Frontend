@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { AnchorsPanel } from "./AnchorsPanel";
 import { ToastProvider } from "./ToastProvider";
@@ -102,8 +103,126 @@ describe("AnchorsPanel", () => {
       target: { value: "vault" },
     });
 
+    // Filtering is debounced, so the non-matching row only drops out once the
+    // debounce delay has elapsed.
+    await waitFor(() =>
+      expect(screen.queryByText("Something Else")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
-    expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
+  });
+
+  it("debounces the search filter, updating the list only after the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchAnchors).mockResolvedValue([
+        {
+          id: "stellar-anchor",
+          name: "Stellar Vault",
+          registeredAt: "",
+          active: true,
+        },
+        { id: "other", name: "Something Else", registeredAt: "", active: true },
+      ]);
+
+      renderPanel();
+
+      // Flush the mocked fetch promise and mount effects so the list renders.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search anchors"), {
+        target: { value: "vault" },
+      });
+
+      // The input reflects the keystroke immediately (no typing lag)...
+      expect(screen.getByLabelText("Search anchors")).toHaveValue("vault");
+      // ...but the filtered list has not been recomputed yet.
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      // Just before the debounce elapses, the list is still unchanged.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      // Once the debounce delay elapses, the non-matching row is filtered out.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
+      expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No anchors registered yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.change(screen.getByLabelText("Search anchors"), {
+      target: { value: "zzz" },
+    });
+
+    // The no-results state appears only after the debounce delay elapses.
+    await waitFor(() =>
+      expect(
+        screen.getByText("No anchors match your search or filter."),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("No anchors registered yet."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Anchor A")).toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Search anchors")).toHaveValue("");
+  });
+
+  it("clears the status filter from the no-results empty state", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByRole("button", { name: "Inactive" }));
+    expect(
+      screen.getByText("No anchors match your search or filter."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("registers a new anchor and reloads the list", async () => {
@@ -131,6 +250,27 @@ describe("AnchorsPanel", () => {
     expect(
       await screen.findByText(/registered anchor "new-anchor"/i),
     ).toBeInTheDocument();
+  });
+
+  it("surfaces a field-level error on failed registration and does not clear the form", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+    vi.mocked(registerAnchor).mockRejectedValue(new Error("Duplicate anchor id"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "existing-anchor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() => {
+      expect(registerAnchor).toHaveBeenCalledWith({
+        id: "existing-anchor",
+        name: undefined,
+      });
+      expect(idInput).toHaveValue("existing-anchor");
+      expect(screen.getByText("Duplicate anchor id")).toBeInTheDocument();
+    });
   });
 
   it("confirms before deactivating an anchor", async () => {

@@ -46,40 +46,126 @@ export function buildQueryParams(
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly requestId?: string;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, requestId?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.code = code;
+    this.requestId = requestId;
   }
 }
 
 async function parseError(res: Response): Promise<ApiRequestError> {
+  const requestId = res.headers?.get("x-request-id") ?? undefined;
   try {
     const body = (await res.json()) as Partial<ApiErrorBody>;
     const code = body.error?.code ?? "UNKNOWN";
     const message = body.error?.message ?? res.statusText;
-    return new ApiRequestError(res.status, code, message);
+    return new ApiRequestError(res.status, code, message, requestId);
   } catch {
-    return new ApiRequestError(res.status, "UNKNOWN", res.statusText);
+    return new ApiRequestError(res.status, "UNKNOWN", res.statusText, requestId);
   }
+}
+
+const MAX_RETRIES = 2;
+const INITIAL_BACKOFF_MS = 500;
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("signal is aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException("signal is aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
+}
+
+function isRetryable(method: string | undefined, status: number): boolean {
+  const idempotent = !method || method === "GET" || method === "HEAD";
+  return idempotent && status >= 500 && status < 600;
+}
+
+async function doFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers: Record<string, string> = { ...(init?.headers as object) };
+  if (init?.body) headers["Content-Type"] = "application/json";
+  return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 
 /**
  * Performs a JSON request against the API and returns the parsed body.
  * Throws {@link ApiRequestError} on a non-2xx response.
+ * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
  */
 export async function apiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const headers: Record<string, string> = { ...(init?.headers as object) };
-  if (init?.body) headers["Content-Type"] = "application/json";
+  let lastError: ApiRequestError;
+  const method = init?.method;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-  if (!res.ok) throw await parseError(res);
-  return (await res.json()) as T;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (init?.signal?.aborted) {
+      throw new DOMException("signal is aborted", "AbortError");
+    }
+
+    const res = await doFetch(path, init);
+    if (res.ok) return (await res.json()) as T;
+
+    lastError = await parseError(res);
+
+    if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
+      throw lastError;
+    }
+
+    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+  }
+
+  throw lastError!;
+}
+
+/**
+ * Performs a request against the API and returns the response as text (e.g. CSV).
+ * Throws {@link ApiRequestError} on a non-2xx response.
+ * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
+ */
+export async function apiTextRequest(
+  path: string,
+  init?: RequestInit,
+): Promise<string> {
+  let lastError: ApiRequestError;
+  const method = init?.method;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (init?.signal?.aborted) {
+      throw new DOMException("signal is aborted", "AbortError");
+    }
+
+    const res = await doFetch(path, init);
+    if (res.ok) return await res.text();
+
+    lastError = await parseError(res);
+
+    if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
+      throw lastError;
+    }
+
+    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+  }
+
+  throw lastError!;
 }
 
 /** Fetches the aggregated liquidity pools. */

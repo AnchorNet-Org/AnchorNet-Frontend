@@ -9,18 +9,19 @@ const pools: Pool[] = [
 ];
 
 describe("PoolDistributionBar", () => {
-  it("renders nothing when there are no pools", () => {
-    const { container } = render(<PoolDistributionBar pools={[]} />);
-    expect(container).toBeEmptyDOMElement();
+  it("renders an empty state when there are no pools", () => {
+    render(<PoolDistributionBar pools={[]} />);
+    expect(screen.getByText("No liquidity")).toBeInTheDocument();
+    expect(screen.getByLabelText("No pool liquidity yet")).toBeInTheDocument();
   });
 
-  it("renders nothing when total liquidity is zero", () => {
-    const { container } = render(
+  it("renders an empty state when total liquidity is zero", () => {
+    render(
       <PoolDistributionBar
         pools={[{ asset: "USDC", total: 0, anchors: 0 }]}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("No liquidity")).toBeInTheDocument();
   });
 
   it("renders one bar segment per pool, sized by share of total", () => {

@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   fetchSettlements,
   openSettlement,
   executeSettlement,
   cancelSettlement,
+  exportSettlementsCsv,
 } from "@/lib/settlementsApi";
-import { Settlement, Pagination } from "@/lib/types";
+import { Settlement, Pagination, Pool } from "@/lib/types";
+import { fetchPools } from "@/lib/api";
 import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useToast } from "@/hooks/useToast";
@@ -18,6 +20,7 @@ import { TableSkeleton } from "./TableSkeleton";
 import { SettlementForm } from "./SettlementForm";
 import { SettlementTable } from "./SettlementTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { EmptyState } from "./EmptyState";
 
 /** Selectable page sizes for the settlements list; the first is the default. */
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -43,8 +46,12 @@ export function SettlementsPanel() {
   const [nonce, setNonce] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
+  // Screen-reader announcement for how many rows the last "Load more" added.
+  // Empty on initial load so nothing is announced until the user paginates.
+  const [loadMoreAnnouncement, setLoadMoreAnnouncement] = useState("");
   const [pending, setPending] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
+  const [pools, setPools] = useState<Pool[]>([]);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
@@ -65,7 +72,11 @@ export function SettlementsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ status: "loading" });
+    // The "loading" transition happens at the call site that changes `nonce`
+    // or `pageSize` (reload(), changePageSize()) rather than here, since
+    // setting state synchronously in an effect body triggers a cascading
+    // re-render (react-hooks/set-state-in-effect). The initial state is
+    // already "loading" from useState's initializer above.
     fetchSettlements({ page: 1, pageSize, signal: controller.signal })
       .then(({ settlements, pagination }) =>
         setState({ status: "ready", settlements, pagination }),
@@ -80,6 +91,26 @@ export function SettlementsPanel() {
     return () => controller.abort();
   }, [nonce, pageSize]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPools(controller.signal)
+      .then(setPools)
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load pools", err);
+        }
+      });
+    return () => controller.abort();
+  }, []);
+
+  const availableLiquidity = useMemo(() => {
+    if (pools.length === 0) return undefined;
+    return pools.reduce((acc, pool) => {
+      acc[pool.asset] = pool.total;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [pools]);
+
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
     setRawPageSize(String(size));
@@ -89,6 +120,8 @@ export function SettlementsPanel() {
     if (state.status !== "ready") return;
     setLoadingMore(true);
     setMoreError(null);
+    // Clear so an identical follow-up announcement still triggers a change.
+    setLoadMoreAnnouncement("");
     try {
       const next = await fetchSettlements({
         page: state.pagination.page + 1,
@@ -102,6 +135,9 @@ export function SettlementsPanel() {
               pagination: next.pagination,
             }
           : prev,
+      );
+      setLoadMoreAnnouncement(
+        `Loaded ${pluralize(next.settlements.length, "more settlement")}`,
       );
     } catch (err: unknown) {
       setMoreError(
@@ -122,6 +158,30 @@ export function SettlementsPanel() {
     }
   }
 
+  async function runSettlementAction(
+    action: () => Promise<Settlement>,
+    successMessage: string,
+  ) {
+    try {
+      const updatedSettlement = await action();
+      setState((previous) =>
+        previous.status === "ready"
+          ? {
+              ...previous,
+              settlements: previous.settlements.map((settlement) =>
+                settlement.id === updatedSettlement.id
+                  ? updatedSettlement
+                  : settlement,
+              ),
+            }
+          : previous,
+      );
+      notify("success", successMessage);
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Request failed");
+    }
+  }
+
   async function open(input: {
     anchor: string;
     asset: string;
@@ -135,6 +195,27 @@ export function SettlementsPanel() {
     setPending(false);
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const csvText = await exportSettlementsCsv({ pageSize });
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "settlements.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      notify("success", "Exported settlements as CSV.");
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const visibleSettlements =
     state.status === "ready"
       ? state.settlements.filter((s) =>
@@ -144,11 +225,15 @@ export function SettlementsPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Always-mounted live region so screen readers pick up text changes. */}
+      <div aria-live="polite" className="sr-only">
+        {loadMoreAnnouncement}
+      </div>
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Open settlement
         </h2>
-        <SettlementForm onSubmit={open} pending={pending} />
+        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -159,6 +244,13 @@ export function SettlementsPanel() {
           <>
             {state.settlements.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+                >
+                  {exporting ? "Exporting…" : "Export CSV"}
+                </button>
                 <label className="flex items-center gap-1.5 text-xs text-zinc-400">
                   Rows per page
                   <select
@@ -185,14 +277,19 @@ export function SettlementsPanel() {
               </div>
             ) : null}
             {visibleSettlements.length === 0 && state.settlements.length > 0 ? (
-              <p className="py-6 text-center text-sm text-zinc-500">
-                No settlements match your search.
-              </p>
+              <EmptyState
+                reason="no-results"
+                message="No settlements match your search."
+                onClearFilters={() => setQuery("")}
+              />
             ) : (
               <SettlementTable
                 settlements={visibleSettlements}
                 onExecute={(id) =>
-                  run(() => executeSettlement(id), `Executed settlement #${id}.`)
+                  runSettlementAction(
+                    () => executeSettlement(id),
+                    `Executed settlement #${id}.`,
+                  )
                 }
                 onCancel={setPendingCancelId}
               />
@@ -229,7 +326,10 @@ export function SettlementsPanel() {
           const id = pendingCancelId;
           setPendingCancelId(null);
           if (id !== null) {
-            run(() => cancelSettlement(id), `Cancelled settlement #${id}.`);
+            runSettlementAction(
+              () => cancelSettlement(id),
+              `Cancelled settlement #${id}.`,
+            );
           }
         }}
       />

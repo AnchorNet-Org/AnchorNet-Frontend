@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { fetchAnchor, deregisterAnchor } from "@/lib/anchorsApi";
+import { Anchor } from "@/lib/types";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { formatDate } from "@/lib/format";
@@ -12,12 +13,21 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { CopyButton } from "./CopyButton";
 
 /** Full-record view of a single anchor, with a deactivate action. */
-export function AnchorDetail({ id }: { id: string }) {
+export function AnchorDetail({
+  id,
+  initialData,
+}: {
+  id: string;
+  initialData?: Anchor;
+}) {
   const load = useCallback(
     (signal: AbortSignal) => fetchAnchor(id, signal),
     [id],
   );
-  const { state, reload } = useAsync(load);
+  const { state, reload } = useAsync(
+    load,
+    initialData ? { status: "ready", data: initialData } : undefined,
+  );
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
