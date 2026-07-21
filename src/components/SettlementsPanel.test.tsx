@@ -14,7 +14,7 @@ import {
   executeSettlement,
   cancelSettlement,
 } from "@/lib/settlementsApi";
-import { Settlement, SettlementsPage, Pool } from "@/lib/types";
+import { Settlement, SettlementsPage } from "@/lib/types";
 import { fetchPools } from "@/lib/api";
 
 // ---------------------------------------------------------------------------

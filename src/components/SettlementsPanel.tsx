@@ -73,7 +73,6 @@ export function SettlementsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ status: "loading" });
     fetchSettlements({ page: 1, pageSize, signal: controller.signal })
       .then(({ settlements, pagination }) =>
         setState({ status: "ready", settlements, pagination }),
@@ -110,6 +109,7 @@ export function SettlementsPanel() {
 
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
+    setState({ status: "loading" });
     setRawPageSize(String(size));
   }
 

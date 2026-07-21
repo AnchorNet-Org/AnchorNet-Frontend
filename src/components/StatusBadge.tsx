@@ -19,12 +19,17 @@ export function StatusBadge({ status }: { status: SettlementStatus }) {
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     if (status !== previousStatus.current) {
       previousStatus.current = status;
       // This state deliberately records prop transitions rather than mirroring render state.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAnnouncement(formatStatus(status));
+      Promise.resolve().then(() => {
+        if (!cancelled) setAnnouncement(formatStatus(status));
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [status]);
 
   return (

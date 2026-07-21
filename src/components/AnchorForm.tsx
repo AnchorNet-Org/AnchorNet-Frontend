@@ -43,9 +43,15 @@ export function AnchorForm({
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
+    let cancelled = false;
     if (serverError) {
-      setErrors((prev) => ({ ...prev, id: serverError }));
+      Promise.resolve().then(() => {
+        if (!cancelled) setErrors((prev) => ({ ...prev, id: serverError }));
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [serverError]);
 
   const idRef = useRef<HTMLInputElement>(null);

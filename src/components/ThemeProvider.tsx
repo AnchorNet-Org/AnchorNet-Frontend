@@ -53,11 +53,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Resolve on the client only, after mount.
-    const resolved = resolveTheme();
-    const stored = loadTheme();
-    setTheme(resolved);
-    setIsOverridden(stored !== null);
-    applyTheme(resolved);
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      const resolved = resolveTheme();
+      const stored = loadTheme();
+      setTheme(resolved);
+      setIsOverridden(stored !== null);
+      applyTheme(resolved);
+    });
 
     // Keep in sync with OS preference changes when no override is set.
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -69,7 +73,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       }
     };
     mq.addEventListener("change", handleChange);
-    return () => mq.removeEventListener("change", handleChange);
+    return () => {
+      cancelled = true;
+      mq.removeEventListener("change", handleChange);
+    };
   }, []);
 
   const toggleTheme = useCallback(() => {
