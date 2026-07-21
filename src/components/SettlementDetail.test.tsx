@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  act,
   render,
   screen,
   fireEvent,
@@ -13,6 +14,7 @@ import {
   executeSettlement,
   cancelSettlement,
 } from "@/lib/settlementsApi";
+import { Settlement } from "@/lib/types";
 
 vi.mock("@/lib/settlementsApi", () => ({
   fetchSettlement: vi.fn(),
@@ -92,8 +94,13 @@ describe("SettlementDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("executes a pending settlement", async () => {
-    vi.mocked(fetchSettlement).mockResolvedValue(pending);
+  it("keeps the badge mounted and announces the refreshed status after execution", async () => {
+    let resolveRefresh!: (settlement: Settlement) => void;
+    vi.mocked(fetchSettlement)
+      .mockResolvedValueOnce(pending)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (resolveRefresh = resolve)),
+      );
     vi.mocked(executeSettlement).mockResolvedValue({
       ...pending,
       status: "executed",
@@ -102,9 +109,29 @@ describe("SettlementDetail", () => {
     renderDetail();
     await screen.findByText("Settlement #1");
 
+    const visibleBadge = screen.getByText("Pending");
+    const liveRegion = visibleBadge.nextElementSibling as HTMLElement;
+    expect(liveRegion).toHaveAttribute("aria-live", "polite");
+    expect(liveRegion).toBeEmptyDOMElement();
+
     fireEvent.click(screen.getByRole("button", { name: "Execute" }));
 
     await waitFor(() => expect(executeSettlement).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(fetchSettlement).toHaveBeenCalledTimes(2));
+
+    expect(
+      screen.queryByLabelText("Loading settlement…"),
+    ).not.toBeInTheDocument();
+    expect(visibleBadge).toBeInTheDocument();
+    expect(liveRegion).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh({ ...pending, status: "executed" });
+    });
+
+    expect(visibleBadge).toHaveTextContent("Executed");
+    expect(liveRegion).toHaveTextContent("Executed");
+    expect(screen.getByText("Executed settlement #1.")).toBeInTheDocument();
   });
 
   it("confirms before cancelling a pending settlement", async () => {

@@ -51,7 +51,15 @@ export function useAsync<T>(
         // aborted (unmount / reload) or the load function itself threw an
         // AbortError (e.g. from an externally-supplied signal).  Neither case
         // is a genuine failure, so we must never surface an error toast.
-        if (controller.signal.aborted || isAbortError(err)) return;
+        // Explicitly also check for plain `Error` instances with the name
+        // `AbortError` to cover racey paths where the signal's `aborted`
+        // property might still be false when the catch handler runs.
+        if (
+          controller.signal.aborted ||
+          isAbortError(err) ||
+          (err instanceof Error && err.name === "AbortError")
+        )
+          return;
         setState({
           status: "error",
           message: err instanceof Error ? err.message : "Request failed",

@@ -15,6 +15,32 @@ describe("truncateAddress", () => {
   it("leaves short addresses untouched", () => {
     expect(truncateAddress("GABC")).toBe("GABC");
   });
+
+  // Boundary is `address.length <= visible * 2 + 1`: at or below it the
+  // address is returned as-is, above it it is truncated. With the default
+  // visible = 4 the threshold length is 9.
+  it("returns an address of length visible*2 (8) unchanged", () => {
+    expect(truncateAddress("ABCDEFGH")).toBe("ABCDEFGH");
+  });
+
+  it("returns an address of length visible*2+1 (9) unchanged", () => {
+    expect(truncateAddress("ABCDEFGHI")).toBe("ABCDEFGHI");
+  });
+
+  it("truncates an address of length visible*2+2 (10)", () => {
+    expect(truncateAddress("ABCDEFGHIJ")).toBe("ABCD…GHIJ");
+  });
+
+  // The same boundary math must hold for a custom visible value. With
+  // visible = 6 the threshold length is 13.
+  it("respects the boundary for a custom visible value", () => {
+    // length 12 (visible*2) — unchanged
+    expect(truncateAddress("ABCDEFGHIJKL", 6)).toBe("ABCDEFGHIJKL");
+    // length 13 (visible*2+1) — unchanged
+    expect(truncateAddress("ABCDEFGHIJKLM", 6)).toBe("ABCDEFGHIJKLM");
+    // length 14 (visible*2+2) — truncated
+    expect(truncateAddress("ABCDEFGHIJKLMN", 6)).toBe("ABCDEF…IJKLMN");
+  });
 });
 
 describe("mockAddress", () => {
@@ -91,6 +117,21 @@ describe("wallet session persistence", () => {
     expect(window.localStorage.getItem("anchornet:wallet:seed")).toBeNull();
   });
 
+  it("is idempotent when the storage key is already absent", () => {
+    // Nothing has been saved, so the keys start absent.
+    expect(window.localStorage.getItem("anchornet:wallet")).toBeNull();
+
+    // Repeated clears must not throw and must leave storage clean.
+    expect(() => {
+      clearAccount();
+      clearAccount();
+    }).not.toThrow();
+
+    expect(loadAccount()).toBeNull();
+    expect(window.localStorage.getItem("anchornet:wallet")).toBeNull();
+    expect(window.localStorage.getItem("anchornet:wallet:seed")).toBeNull();
+  });
+
   it("ignores malformed persisted data", () => {
     window.localStorage.setItem("anchornet:wallet", "not json");
     expect(loadAccount()).toBeNull();
@@ -99,5 +140,30 @@ describe("wallet session persistence", () => {
   it("ignores persisted data missing an address", () => {
     window.localStorage.setItem("anchornet:wallet", JSON.stringify({}));
     expect(loadAccount()).toBeNull();
+  });
+
+  it("ignores an empty string address", () => {
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: "" }),
+    );
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("ignores an overly long address", () => {
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: `G${"A".repeat(100)}` }),
+    );
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("loads a well-formed Stellar-shaped address", () => {
+    const wellFormedAddress = mockAddress("well-formed-address");
+    window.localStorage.setItem(
+      "anchornet:wallet",
+      JSON.stringify({ address: wellFormedAddress }),
+    );
+    expect(loadAccount()).toEqual({ address: wellFormedAddress });
   });
 });

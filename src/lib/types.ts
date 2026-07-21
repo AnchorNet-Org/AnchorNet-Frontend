@@ -9,14 +9,6 @@ export interface Pool {
   anchors: number;
 }
 
-/** A single anchor's liquidity contribution to an asset pool. */
-export interface LiquidityEntry {
-  anchor: string;
-  asset: string;
-  amount: number;
-  updatedAt: string;
-}
-
 /** A request to route `amount` of `asset` through available liquidity. */
 export interface QuoteRequest {
   asset: string;

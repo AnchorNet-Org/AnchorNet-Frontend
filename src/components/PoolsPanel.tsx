@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Pool } from "@/lib/types";
+import { useCallback, useRef } from "react";
 import { fetchPools } from "@/lib/api";
 import { formatAmount } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
+import { useAsync } from "@/hooks/useAsync";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
+import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
 import { StatCard } from "./StatCard";
 import { PoolTable } from "./PoolTable";
@@ -13,38 +14,13 @@ import { PoolDistributionBar } from "./PoolDistributionBar";
 import { TableSkeleton } from "./TableSkeleton";
 import { EmptyState } from "./EmptyState";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; pools: Pool[] };
-
 /** Client panel that loads liquidity pools and renders summary stats. */
 export function PoolsPanel() {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [nonce, setNonce] = useState(0);
-  const [query, setQuery] = useState("");
+  const load = useCallback((signal: AbortSignal) => fetchPools(signal), []);
+  const { state, reload } = useAsync(load);
+  const [query, setQuery] = useQueryState("q", "");
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
-
-  const reload = useCallback(() => {
-    setState({ status: "loading" });
-    setNonce((n) => n + 1);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchPools(controller.signal)
-      .then((pools) => setState({ status: "ready", pools }))
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        const message =
-          err instanceof Error ? err.message : "Failed to load pools";
-        setState({ status: "error", message });
-      });
-
-    return () => controller.abort();
-  }, [nonce]);
 
   if (state.status === "loading") {
     return (
@@ -71,16 +47,16 @@ export function PoolsPanel() {
     );
   }
 
-  const totalLiquidity = state.pools.reduce((sum, p) => sum + p.total, 0);
-  const positions = state.pools.reduce((sum, p) => sum + p.anchors, 0);
-  const filteredPools = state.pools.filter((pool) =>
+  const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
+  const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
+  const filteredPools = state.data.filter((pool) =>
     matchesQuery([pool.asset], query),
   );
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Assets" value={String(state.pools.length)} />
+        <StatCard label="Assets" value={String(state.data.length)} />
         <StatCard
           label="Total liquidity"
           value={formatAmount(totalLiquidity)}
@@ -93,30 +69,33 @@ export function PoolsPanel() {
       </div>
       <Card>
         <div className="mb-4">
-          <PoolDistributionBar pools={state.pools} />
+          <PoolDistributionBar pools={state.data} />
         </div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-200">Pools</h2>
-          <div className="flex items-center gap-2">
-            {state.pools.length > 0 ? (
-              <input
-                ref={searchRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search pools… (/)"
-                aria-label="Search pools"
-                className="w-full max-w-40 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-zinc-600"
-              />
-            ) : null}
+          <div
+            role="search"
+            aria-label="Pools search and refresh"
+            className="flex items-center gap-2"
+          >
+            <input
+              ref={searchRef}
+              type="text"
+              aria-label="Search pools"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search pools…"
+              className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+            />
             <button
               onClick={reload}
-              className="rounded-lg px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+              className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
             >
               Refresh
             </button>
           </div>
         </div>
-        {filteredPools.length === 0 && state.pools.length > 0 ? (
+        {filteredPools.length === 0 && state.data.length > 0 ? (
           <EmptyState
             reason="no-results"
             message="No pools match your search."

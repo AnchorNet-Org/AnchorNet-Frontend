@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { AnchorsPanel } from "./AnchorsPanel";
 import { ToastProvider } from "./ToastProvider";
@@ -102,8 +103,61 @@ describe("AnchorsPanel", () => {
       target: { value: "vault" },
     });
 
+    // Filtering is debounced, so the non-matching row only drops out once the
+    // debounce delay has elapsed.
+    await waitFor(() =>
+      expect(screen.queryByText("Something Else")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
-    expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
+  });
+
+  it("debounces the search filter, updating the list only after the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchAnchors).mockResolvedValue([
+        {
+          id: "stellar-anchor",
+          name: "Stellar Vault",
+          registeredAt: "",
+          active: true,
+        },
+        { id: "other", name: "Something Else", registeredAt: "", active: true },
+      ]);
+
+      renderPanel();
+
+      // Flush the mocked fetch promise and mount effects so the list renders.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search anchors"), {
+        target: { value: "vault" },
+      });
+
+      // The input reflects the keystroke immediately (no typing lag)...
+      expect(screen.getByLabelText("Search anchors")).toHaveValue("vault");
+      // ...but the filtered list has not been recomputed yet.
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      // Just before the debounce elapses, the list is still unchanged.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+      expect(screen.getByText("Something Else")).toBeInTheDocument();
+
+      // Once the debounce delay elapses, the non-matching row is filtered out.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.queryByText("Something Else")).not.toBeInTheDocument();
+      expect(screen.getByText("Stellar Vault")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the no-data empty state without a clear-filters action", async () => {
@@ -131,16 +185,21 @@ describe("AnchorsPanel", () => {
       target: { value: "zzz" },
     });
 
-    expect(
-      screen.getByText("No anchors match your search or filter."),
-    ).toBeInTheDocument();
+    // The no-results state appears only after the debounce delay elapses.
+    await waitFor(() =>
+      expect(
+        screen.getByText("No anchors match your search or filter."),
+      ).toBeInTheDocument(),
+    );
     expect(
       screen.queryByText("No anchors registered yet."),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("Anchor A")).toBeInTheDocument(),
+    );
     expect(screen.getByLabelText("Search anchors")).toHaveValue("");
   });
 
@@ -191,6 +250,27 @@ describe("AnchorsPanel", () => {
     expect(
       await screen.findByText(/registered anchor "new-anchor"/i),
     ).toBeInTheDocument();
+  });
+
+  it("surfaces a field-level error on failed registration and does not clear the form", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+    vi.mocked(registerAnchor).mockRejectedValue(new Error("Duplicate anchor id"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "existing-anchor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() => {
+      expect(registerAnchor).toHaveBeenCalledWith({
+        id: "existing-anchor",
+        name: undefined,
+      });
+      expect(idInput).toHaveValue("existing-anchor");
+      expect(screen.getByText("Duplicate anchor id")).toBeInTheDocument();
+    });
   });
 
   it("confirms before deactivating an anchor", async () => {
@@ -320,5 +400,110 @@ describe("AnchorsPanel", () => {
     expect(
       screen.getByRole("button", { name: "All" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Arrow-key roving focus tests
+  // -------------------------------------------------------------------------
+
+  it("moves focus to the next filter button on ArrowRight", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+
+    allBtn.focus();
+    expect(document.activeElement).toBe(allBtn);
+
+    fireEvent.keyDown(allBtn, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(activeBtn);
+  });
+
+  it("moves focus to the previous filter button on ArrowLeft", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+
+    activeBtn.focus();
+    fireEvent.keyDown(activeBtn, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("wraps focus from the last to the first button on ArrowRight", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    inactiveBtn.focus();
+    fireEvent.keyDown(inactiveBtn, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("jumps focus to the first button on Home", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    inactiveBtn.focus();
+    fireEvent.keyDown(inactiveBtn, { key: "Home" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("jumps focus to the last button on End", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    allBtn.focus();
+    fireEvent.keyDown(allBtn, { key: "End" });
+    expect(document.activeElement).toBe(inactiveBtn);
+  });
+
+  it("applies the filter when Enter is pressed on a focused filter button", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: false },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+    activeBtn.focus();
+    // Enter on a button fires a click natively; simulate the click directly
+    fireEvent.click(activeBtn);
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.queryByText("Anchor B")).not.toBeInTheDocument();
+    expect(activeBtn).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -99,4 +99,26 @@ describe("useFocusShortcut", () => {
     document.body.removeChild(searchInput);
     document.body.removeChild(outsideButton);
   });
+
+  it("when multiple instances are bound to the same key, the last mounted instance retains focus", () => {
+    const input1 = document.createElement("input");
+    const input2 = document.createElement("input");
+    document.body.appendChild(input1);
+    document.body.appendChild(input2);
+
+    const ref1 = createRef<HTMLInputElement>();
+    ref1.current = input1;
+    const ref2 = createRef<HTMLInputElement>();
+    ref2.current = input2;
+
+    renderHook(() => useFocusShortcut("/", ref1));
+    renderHook(() => useFocusShortcut("/", ref2));
+
+    pressKey("/");
+
+    expect(document.activeElement).toBe(input2);
+
+    document.body.removeChild(input1);
+    document.body.removeChild(input2);
+  });
 });

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { Settlement } from "@/lib/types";
 import { formatAmount } from "@/lib/format";
-import { useSortableData, SortState } from "@/hooks/useSortableData";
+import { useSortableData } from "@/hooks/useSortableData";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
+import { SortableHeader } from "./SortableHeader";
 
 type SortKey = "anchor" | "amount" | "status";
 
@@ -33,6 +34,13 @@ export function SettlementTable({
   }
 
   const actionable = Boolean(onExecute || onCancel);
+  const totals = settlements.reduce(
+    (sum, settlement) => ({
+      amount: sum.amount + settlement.amount,
+      fee: sum.fee + settlement.fee,
+    }),
+    { amount: 0, fee: 0 },
+  );
 
   return (
     <table className="w-full text-left text-sm">
@@ -104,40 +112,17 @@ export function SettlementTable({
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr className="border-t border-zinc-800 font-medium">
+          <td className="py-2 text-zinc-300" colSpan={3}>
+            Total (visible rows)
+          </td>
+          <td className="py-2 text-zinc-100">{formatAmount(totals.amount)}</td>
+          <td className="py-2 text-zinc-300">{formatAmount(totals.fee)}</td>
+          <td />
+          {actionable ? <td /> : null}
+        </tr>
+      </tfoot>
     </table>
-  );
-}
-
-function SortableHeader({
-  label,
-  sortKey,
-  sort,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  sort: SortState<SortKey> | null;
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sort?.key === sortKey;
-  const indicator = active ? (sort?.direction === "asc" ? "▲" : "▼") : "";
-  const ariaSort = !active
-    ? "none"
-    : sort?.direction === "asc"
-      ? "ascending"
-      : "descending";
-
-  return (
-    <th className="py-2 font-medium" aria-sort={ariaSort}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        aria-label={`Sort by ${label}`}
-        className="flex items-center gap-1 hover:text-zinc-200"
-      >
-        {label}
-        <span className="w-2 text-[10px] text-zinc-500">{indicator}</span>
-      </button>
-    </th>
   );
 }
