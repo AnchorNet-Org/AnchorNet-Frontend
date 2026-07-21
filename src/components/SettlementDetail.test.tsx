@@ -23,7 +23,7 @@ vi.mock("@/lib/settlementsApi", () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 const pending = {
@@ -153,5 +153,42 @@ describe("SettlementDetail", () => {
     );
 
     await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
+  });
+
+  it("skips fetchSettlement on mount when initialData is provided", () => {
+    render(
+      <ToastProvider>
+        <SettlementDetail id={1} initialData={pending} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Settlement #1")).toBeInTheDocument();
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(fetchSettlement).not.toHaveBeenCalled();
+  });
+
+  it("calls fetchSettlement when refreshing after executing a settlement initialized with initialData", async () => {
+    vi.mocked(executeSettlement).mockResolvedValue({
+      ...pending,
+      status: "executed",
+    });
+    vi.mocked(fetchSettlement).mockResolvedValue({
+      ...pending,
+      status: "executed",
+    });
+
+    render(
+      <ToastProvider>
+        <SettlementDetail id={1} initialData={pending} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Settlement #1")).toBeInTheDocument();
+    expect(fetchSettlement).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
+
+    await waitFor(() => expect(executeSettlement).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(fetchSettlement).toHaveBeenCalledTimes(1));
   });
 });

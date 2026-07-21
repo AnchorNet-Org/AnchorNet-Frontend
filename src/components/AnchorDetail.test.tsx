@@ -16,7 +16,7 @@ vi.mock("@/lib/anchorsApi", () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 function renderDetail(id = "anchorA") {
@@ -111,5 +111,56 @@ describe("AnchorDetail", () => {
     await waitFor(() =>
       expect(deregisterAnchor).toHaveBeenCalledWith("anchorA"),
     );
+  });
+
+  it("skips fetchAnchor on mount when initialData is provided", () => {
+    const initialData = {
+      id: "anchorA",
+      name: "Anchor A (Seeded)",
+      registeredAt: "2026-01-01T00:00:00.000Z",
+      active: true,
+    };
+
+    render(
+      <ToastProvider>
+        <AnchorDetail id="anchorA" initialData={initialData} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Anchor A (Seeded)")).toBeInTheDocument();
+    expect(fetchAnchor).not.toHaveBeenCalled();
+  });
+
+  it("calls fetchAnchor when reloading after deactivating an anchor initialized with initialData", async () => {
+    const initialData = {
+      id: "anchorA",
+      name: "Anchor A (Seeded)",
+      registeredAt: "2026-01-01T00:00:00.000Z",
+      active: true,
+    };
+    vi.mocked(deregisterAnchor).mockResolvedValue({
+      ...initialData,
+      active: false,
+    });
+    vi.mocked(fetchAnchor).mockResolvedValue({
+      ...initialData,
+      active: false,
+    });
+
+    render(
+      <ToastProvider>
+        <AnchorDetail id="anchorA" initialData={initialData} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Anchor A (Seeded)")).toBeInTheDocument();
+    expect(fetchAnchor).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+
+    await waitFor(() => expect(deregisterAnchor).toHaveBeenCalledWith("anchorA"));
+    await waitFor(() => expect(fetchAnchor).toHaveBeenCalledTimes(1));
   });
 });

@@ -11,6 +11,9 @@ export type AsyncState<T> =
 /**
  * Runs an abortable async loader on mount and exposes a `reload` trigger.
  *
+ * If seeded with an already-"ready" `initialState`, the initial fetch on mount
+ * is skipped; re-running is driven by `reload` or `refresh`.
+ *
  * The loader is expected to be behaviourally stable; re-running is driven by
  * `reload`, which also surfaces a loading state.
  */
@@ -43,6 +46,10 @@ export function useAsync<T>(
   );
 
   useEffect(() => {
+    if (nonce === 0 && initialState.status === "ready") {
+      return;
+    }
+
     const controller = new AbortController();
     load(controller.signal)
       .then((data) => setState({ status: "ready", data }))
