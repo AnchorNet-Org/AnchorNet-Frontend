@@ -288,3 +288,30 @@ describe("ToastProvider", () => {
     expect(toast).not.toBeInTheDocument();
   });
 });
+  it("does not throw or warn when notify is called after provider unmounts", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let capturedNotify: ((kind: Toast["kind"], message: string) => void) | undefined;
+
+    function CaptureNotify() {
+      const { notify } = useToast();
+      useEffect(() => {
+        capturedNotify = notify;
+      }, [notify]);
+      return null;
+    }
+
+    const { unmount } = render(
+      <ToastProvider>
+        <CaptureNotify />
+      </ToastProvider>,
+    );
+    // Unmount the provider while keeping reference to notify.
+    unmount();
+
+    // Call notify after unmount; should be safe no-op.
+    capturedNotify?.("success", "post-unmount");
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+});
