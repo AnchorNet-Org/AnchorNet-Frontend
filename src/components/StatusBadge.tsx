@@ -22,7 +22,6 @@ export function StatusBadge({ status }: { status: SettlementStatus }) {
     if (status !== previousStatus.current) {
       previousStatus.current = status;
       // This state deliberately records prop transitions rather than mirroring render state.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(formatStatus(status));
     }
   }, [status]);
