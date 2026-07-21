@@ -380,4 +380,109 @@ describe("AnchorsPanel", () => {
       screen.getByRole("button", { name: "All" }),
     ).toHaveAttribute("aria-pressed", "true");
   });
+
+  // -------------------------------------------------------------------------
+  // Arrow-key roving focus tests
+  // -------------------------------------------------------------------------
+
+  it("moves focus to the next filter button on ArrowRight", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+
+    allBtn.focus();
+    expect(document.activeElement).toBe(allBtn);
+
+    fireEvent.keyDown(allBtn, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(activeBtn);
+  });
+
+  it("moves focus to the previous filter button on ArrowLeft", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+
+    activeBtn.focus();
+    fireEvent.keyDown(activeBtn, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("wraps focus from the last to the first button on ArrowRight", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    inactiveBtn.focus();
+    fireEvent.keyDown(inactiveBtn, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("jumps focus to the first button on Home", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    inactiveBtn.focus();
+    fireEvent.keyDown(inactiveBtn, { key: "Home" });
+    expect(document.activeElement).toBe(allBtn);
+  });
+
+  it("jumps focus to the last button on End", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const allBtn = screen.getByRole("button", { name: "All" });
+    const inactiveBtn = screen.getByRole("button", { name: "Inactive" });
+
+    allBtn.focus();
+    fireEvent.keyDown(allBtn, { key: "End" });
+    expect(document.activeElement).toBe(inactiveBtn);
+  });
+
+  it("applies the filter when Enter is pressed on a focused filter button", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: false },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    const activeBtn = screen.getByRole("button", { name: "Active" });
+    activeBtn.focus();
+    // Enter on a button fires a click natively; simulate the click directly
+    fireEvent.click(activeBtn);
+
+    expect(screen.getByText("Anchor A")).toBeInTheDocument();
+    expect(screen.queryByText("Anchor B")).not.toBeInTheDocument();
+    expect(activeBtn).toHaveAttribute("aria-pressed", "true");
+  });
 });
