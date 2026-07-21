@@ -99,4 +99,89 @@ describe("WalletProvider", () => {
       expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
     });
   });
+
+  it("syncs a connect from another tab via a storage event", async () => {
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+    expect(screen.getByText("disconnected")).toBeInTheDocument();
+
+    // Simulate another tab writing the wallet key to localStorage
+    const address = "G" + "B".repeat(55);
+    localStorage.setItem("anchornet:wallet", JSON.stringify({ address }));
+    fireEvent(
+      window,
+      new StorageEvent("storage", {
+        key: "anchornet:wallet",
+        newValue: JSON.stringify({ address }),
+        storageArea: localStorage,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(address)).toBeInTheDocument();
+    });
+  });
+
+  it("syncs a disconnect from another tab via a storage event", async () => {
+    const address = "G" + "C".repeat(55);
+    localStorage.setItem("anchornet:wallet", JSON.stringify({ address }));
+
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+
+    // Wait for the initial mount load to settle
+    await waitFor(() => {
+      expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
+    });
+
+    // Simulate another tab removing the wallet key
+    localStorage.removeItem("anchornet:wallet");
+    fireEvent(
+      window,
+      new StorageEvent("storage", {
+        key: "anchornet:wallet",
+        newValue: null,
+        storageArea: localStorage,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("disconnected")).toBeInTheDocument();
+    });
+  });
+
+  it("ignores storage events for unrelated keys", async () => {
+    const address = "G" + "D".repeat(55);
+    localStorage.setItem("anchornet:wallet", JSON.stringify({ address }));
+
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
+    });
+
+    // Fire a storage event for an unrelated key — state must not change
+    fireEvent(
+      window,
+      new StorageEvent("storage", {
+        key: "some-other-key",
+        newValue: "irrelevant",
+        storageArea: localStorage,
+      }),
+    );
+
+    // Account should still be shown (not reset to disconnected)
+    expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
+    expect(screen.getByText(address)).toBeInTheDocument();
+  });
 });

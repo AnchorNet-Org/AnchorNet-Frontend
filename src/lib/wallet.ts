@@ -11,7 +11,7 @@ export interface WalletAccount {
 }
 
 /** localStorage key the connected account is persisted under. */
-const STORAGE_KEY = "anchornet:wallet";
+export const STORAGE_KEY = "anchornet:wallet";
 
 /** localStorage key for the per-session random seed. */
 const SEED_STORAGE_KEY = "anchornet:wallet:seed";
