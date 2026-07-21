@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { Settlement } from "@/lib/types";
 import { formatAmount } from "@/lib/format";
-import { useSortableData, SortState } from "@/hooks/useSortableData";
+import { useSortableData } from "@/hooks/useSortableData";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
+import { SortableHeader } from "./SortableHeader";
 
 type SortKey = "anchor" | "amount" | "status";
 
@@ -105,39 +106,5 @@ export function SettlementTable({
         ))}
       </tbody>
     </table>
-  );
-}
-
-function SortableHeader({
-  label,
-  sortKey,
-  sort,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  sort: SortState<SortKey> | null;
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sort?.key === sortKey;
-  const indicator = active ? (sort?.direction === "asc" ? "▲" : "▼") : "";
-  const ariaSort = !active
-    ? "none"
-    : sort?.direction === "asc"
-      ? "ascending"
-      : "descending";
-
-  return (
-    <th className="py-2 font-medium" aria-sort={ariaSort}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        aria-label={`Sort by ${label}`}
-        className="flex items-center gap-1 hover:text-zinc-200"
-      >
-        {label}
-        <span className="w-2 text-[10px] text-zinc-500">{indicator}</span>
-      </button>
-    </th>
   );
 }
