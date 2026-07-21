@@ -16,7 +16,7 @@ interface FormErrors {
 }
 
 /** Validates the settlement fields, returning field-level error messages. */
-function validate(anchor: string, asset: string, amount: string): FormErrors {
+function validate(anchor: string, asset: string, amount: string, availableLiquidity?: Record<string, number>): FormErrors {
   const errors: FormErrors = {};
   if (anchor.trim() === "") errors.anchor = "Anchor id is required.";
   if (asset.trim() === "") errors.asset = "Asset is required.";
@@ -26,6 +26,12 @@ function validate(anchor: string, asset: string, amount: string): FormErrors {
     errors.amount = "Enter a valid amount.";
   } else if (numeric <= 0) {
     errors.amount = "Amount must be greater than zero.";
+  } else if (availableLiquidity) {
+    const normalizedAsset = asset.trim().toUpperCase();
+    const available = availableLiquidity[normalizedAsset];
+    if (available !== undefined && numeric > available) {
+      errors.amount = `Insufficient liquidity: only ${available} ${normalizedAsset} available.`;
+    }
   }
   return errors;
 }
@@ -34,9 +40,12 @@ function validate(anchor: string, asset: string, amount: string): FormErrors {
 export function SettlementForm({
   onSubmit,
   pending,
+  availableLiquidity,
 }: {
   onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
   pending?: boolean;
+  /** Optional mapping of asset code (uppercase) to available liquidity amount */
+  availableLiquidity?: Record<string, number>;
 }) {
   const [anchor, setAnchor] = useState("");
   const [asset, setAsset] = useState("USDC");
@@ -47,13 +56,13 @@ export function SettlementForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const nextErrors = validate(anchor, asset, amount);
+    const nextErrors = validate(anchor, asset, amount, availableLiquidity);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     onSubmit({
       anchor: anchor.trim(),
-      asset: asset.trim(),
+      asset: asset.trim().toUpperCase(),
       amount: Number(amount),
     });
     setAmount("");
