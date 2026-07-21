@@ -5,6 +5,7 @@ import { fetchPools } from "@/lib/api";
 import { formatAmount } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useAsync } from "@/hooks/useAsync";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
@@ -14,11 +15,14 @@ import { PoolDistributionBar } from "./PoolDistributionBar";
 import { TableSkeleton } from "./TableSkeleton";
 import { EmptyState } from "./EmptyState";
 
+const SEARCH_DEBOUNCE_MS = 200;
+
 /** Client panel that loads liquidity pools and renders summary stats. */
 export function PoolsPanel() {
   const load = useCallback((signal: AbortSignal) => fetchPools(signal), []);
   const { state, reload } = useAsync(load);
   const [query, setQuery] = useQueryState("q", "");
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
@@ -50,7 +54,7 @@ export function PoolsPanel() {
   const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
   const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
   const filteredPools = state.data.filter((pool) =>
-    matchesQuery([pool.asset], query),
+    matchesQuery([pool.asset], debouncedQuery),
   );
 
   return (
