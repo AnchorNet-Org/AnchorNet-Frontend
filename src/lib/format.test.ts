@@ -4,7 +4,7 @@ import {
   pluralize,
   feeInBps,
   formatStatus,
-  formatDate,
+  formatDate, formatPercent,
 } from "./format";
 
 describe("formatAmount", () => {
@@ -56,5 +56,17 @@ describe("formatDate", () => {
   it("returns a dash for empty or invalid input", () => {
     expect(formatDate("")).toBe("—");
     expect(formatDate("not-a-date")).toBe("—");
+  });
+});
+
+
+describe("formatPercent", () => {
+  it("formats with default 1 decimal place", () => {
+    expect(formatPercent(75)).toBe("75.0%");
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+  it("allows custom digits", () => {
+    expect(formatPercent(75, 2)).toBe("75.00%");
+    expect(formatPercent(75.123, 3)).toBe("75.123%");
   });
 });
