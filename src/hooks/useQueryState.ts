@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 /**
@@ -14,6 +14,9 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
  *
  * **URL update:** calling the setter updates local state immediately and also
  * pushes a shallow `router.replace` so the address bar and Back button work.
+ *
+ * **External URL changes:** an effect watches the URL search-param value so that
+ * navigation changes (e.g. browser Back/Forward buttons) keep local state in sync.
  *
  * - An empty / missing param is represented as the provided `fallback`
  *   (defaults to `""`).
@@ -36,8 +39,14 @@ export function useQueryState(
   const initial = raw !== null && raw !== "" ? raw : fallback;
 
   // Keep local state so controlled inputs respond instantly without waiting
-  // for a router round-trip. The initial value is derived from the URL once.
+  // for a router round-trip.
   const [value, setValue] = useState<string>(initial);
+
+  // Sync state when the URL param changes externally (e.g. Back/Forward navigation).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setValue(initial);
+  }, [initial]);
 
   const set = useCallback(
     (next: string) => {
