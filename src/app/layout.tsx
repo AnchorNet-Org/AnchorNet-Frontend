@@ -59,7 +59,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Apply theme before first paint to prevent flash of incorrect theme */}
-        {/* eslint-disable-next-line @next/next/no-before-interactive-script-props */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body
