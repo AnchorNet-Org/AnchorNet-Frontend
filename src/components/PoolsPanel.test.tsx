@@ -46,6 +46,20 @@ describe("PoolsPanel", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Search pools"));
   });
 
+  it("advertises the / focus shortcut in the search placeholder", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toHaveAttribute(
+      "placeholder",
+      "Search pools… (/)",
+    );
+  });
+
   it("filters pools via the search box", async () => {
     vi.mocked(fetchPools).mockResolvedValue([
       { asset: "USDC", total: 1000, anchors: 2 },

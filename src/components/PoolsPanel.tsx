@@ -108,7 +108,7 @@ export function PoolsPanel() {
               aria-label="Search pools"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pools…"
+              placeholder="Search pools… (/)"
               className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
             />
             <button
