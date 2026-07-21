@@ -5,6 +5,8 @@ import { fetchPools } from "@/lib/api";
 
 vi.mock("@/lib/api", () => ({
   fetchPools: vi.fn(),
+  isAbortError: (err: unknown) =>
+    err instanceof DOMException && err.name === "AbortError",
 }));
 
 beforeEach(() => {
