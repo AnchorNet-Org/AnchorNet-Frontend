@@ -43,6 +43,43 @@ describe("useInterval", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
+  it("stops ticking when delayMs transitions to null", () => {
+    const callback = vi.fn();
+    const { rerender } = renderHook(
+      ({ delay }) => useInterval(callback, delay),
+      { initialProps: { delay: 1000 } },
+    );
+
+    vi.advanceTimersByTime(2500);
+    expect(callback).toHaveBeenCalledTimes(2);
+
+    rerender({ delay: null });
+    vi.advanceTimersByTime(5000);
+    expect(callback).toHaveBeenCalledTimes(2);
+  });
+
+  it("resumes ticking on the correct schedule after a null pause", () => {
+    const callback = vi.fn();
+    const { rerender } = renderHook(
+      ({ delay }) => useInterval(callback, delay),
+      { initialProps: { delay: null } },
+    );
+
+    vi.advanceTimersByTime(5000);
+    expect(callback).not.toHaveBeenCalled();
+
+    rerender({ delay: 1000 });
+
+    vi.advanceTimersByTime(999);
+    expect(callback).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1000);
+    expect(callback).toHaveBeenCalledTimes(2);
+  });
+
   it("clears the timer on unmount", () => {
     const callback = vi.fn();
     const { unmount } = renderHook(() => useInterval(callback, 1000));
