@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { SettlementTable } from "./SettlementTable";
 import { Settlement } from "@/lib/types";
@@ -28,6 +28,35 @@ function amountCells() {
 }
 
 describe("SettlementTable sorting", () => {
+  it("makes the full first cell a settlement detail link", () => {
+    render(<SettlementTable settlements={[settlements[0]]} />);
+
+    const row = within(document.querySelector("tbody")!).getByRole("row");
+    const firstCell = within(row).getAllByRole("cell")[0];
+    const link = within(firstCell).getByRole("link", { name: "1" });
+
+    expect(link).toHaveAttribute("href", "/settlements/1");
+    expect(link).toHaveClass("block", "hover:underline");
+  });
+
+  it("keeps pending-row actions independently clickable", () => {
+    const onExecute = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <SettlementTable
+        settlements={[settlements[0]]}
+        onExecute={onExecute}
+        onCancel={onCancel}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onExecute).toHaveBeenCalledWith(1);
+    expect(onCancel).toHaveBeenCalledWith(1);
+  });
+
   it("shows the amount and fee totals for the visible rows", () => {
     render(<SettlementTable settlements={settlements} />);
 

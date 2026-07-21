@@ -74,7 +74,10 @@ export function SettlementTable({
         {sorted.map((s) => (
           <tr key={s.id} className="border-b border-zinc-900">
             <td className="py-2 text-zinc-500">
-              <Link href={`/settlements/${s.id}`} className="hover:underline">
+              <Link
+                href={`/settlements/${s.id}`}
+                className="block hover:underline"
+              >
                 {s.id}
               </Link>
             </td>
