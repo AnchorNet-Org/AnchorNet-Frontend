@@ -27,6 +27,11 @@ function amountCells() {
   return rows.map((row) => within(row).getAllByRole("cell")[3].textContent);
 }
 
+function statusCells() {
+  const rows = within(document.querySelector("tbody")!).getAllByRole("row");
+  return rows.map((row) => within(row).getAllByRole("cell")[5].textContent);
+}
+
 describe("SettlementTable sorting", () => {
   it("shows the amount and fee totals for the visible rows", () => {
     render(<SettlementTable settlements={settlements} />);
@@ -57,6 +62,21 @@ describe("SettlementTable sorting", () => {
     fireEvent.click(screen.getByLabelText("Sort by Amount"));
     fireEvent.click(screen.getByLabelText("Sort by Amount"));
     expect(amountCells()).toEqual(["300", "200", "100"]);
+  });
+
+  it("sorts by status following canonical lifecycle order (pending -> executed -> cancelled)", () => {
+    const statusSettlements: Settlement[] = [
+      settlement({ id: 1, status: "executed" }),
+      settlement({ id: 2, status: "cancelled" }),
+      settlement({ id: 3, status: "pending" }),
+    ];
+    render(<SettlementTable settlements={statusSettlements} />);
+
+    fireEvent.click(screen.getByLabelText("Sort by Status"));
+    expect(statusCells()).toEqual(["Pending", "Executed", "Cancelled"]);
+
+    fireEvent.click(screen.getByLabelText("Sort by Status"));
+    expect(statusCells()).toEqual(["Cancelled", "Executed", "Pending"]);
   });
 
   it("applies a visible focus style to sortable header buttons", () => {
