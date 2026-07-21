@@ -119,6 +119,25 @@ describe("SettlementsPanel", () => {
     expect(screen.queryByText("other")).not.toBeInTheDocument();
   });
 
+  it("filters the list by settlement status", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([
+        sample,
+        { ...sample, id: 2, anchor: "anchorB", status: "executed" },
+      ]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "executed" },
+    });
+
+    expect(screen.queryByText("anchorA")).not.toBeInTheDocument();
+    expect(screen.getByText("anchorB")).toBeInTheDocument();
+  });
+
   it("shows the no-data empty state without a clear-filters action", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([]));
 

@@ -221,7 +221,7 @@ export function SettlementsPanel() {
   const visibleSettlements =
     state.status === "ready"
       ? state.settlements.filter((s) =>
-          matchesQuery([s.id, s.anchor, s.asset], query),
+          matchesQuery([s.id, s.anchor, s.asset, s.status], query),
         )
       : [];
 
