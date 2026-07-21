@@ -52,6 +52,9 @@ export function SettlementsPanel() {
   const [pending, setPending] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
+  const [pendingSettlementIds, setPendingSettlementIds] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [pools, setPools] = useState<Pool[]>([]);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -156,9 +159,11 @@ export function SettlementsPanel() {
   }
 
   async function runSettlementAction(
+    id: number,
     action: () => Promise<Settlement>,
     successMessage: string,
   ) {
+    setPendingSettlementIds((prev) => new Set(prev).add(id));
     try {
       const updatedSettlement = await action();
       setState((previous) =>
@@ -176,6 +181,12 @@ export function SettlementsPanel() {
       notify("success", successMessage);
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setPendingSettlementIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -284,11 +295,13 @@ export function SettlementsPanel() {
                 settlements={visibleSettlements}
                 onExecute={(id) =>
                   runSettlementAction(
+                    id,
                     () => executeSettlement(id),
                     `Executed settlement #${id}.`,
                   )
                 }
                 onCancel={setPendingCancelId}
+                pendingIds={pendingSettlementIds}
               />
             )}
             {state.pagination.page < state.pagination.totalPages ? (
@@ -324,6 +337,7 @@ export function SettlementsPanel() {
           setPendingCancelId(null);
           if (id !== null) {
             runSettlementAction(
+              id,
               () => cancelSettlement(id),
               `Cancelled settlement #${id}.`,
             );

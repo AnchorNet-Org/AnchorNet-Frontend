@@ -19,10 +19,12 @@ export function SettlementTable({
   settlements,
   onExecute,
   onCancel,
+  pendingIds,
 }: {
   settlements: Settlement[];
   onExecute?: (id: number) => void;
   onCancel?: (id: number) => void;
+  pendingIds?: Set<number>;
 }) {
   const { sorted, sort, requestSort } = useSortableData<Settlement, SortKey>(
     settlements,
@@ -71,46 +73,51 @@ export function SettlementTable({
         </tr>
       </thead>
       <tbody>
-        {sorted.map((s) => (
-          <tr key={s.id} className="border-b border-zinc-900">
-            <td className="py-2 text-zinc-500">
-              <Link href={`/settlements/${s.id}`} className="hover:underline">
-                {s.id}
-              </Link>
-            </td>
-            <td className="py-2 font-mono text-xs text-zinc-300">{s.anchor}</td>
-            <td className="py-2 font-mono text-zinc-100">{s.asset}</td>
-            <td className="py-2 text-zinc-200">{formatAmount(s.amount)}</td>
-            <td className="py-2 text-zinc-400">{formatAmount(s.fee)}</td>
-            <td className="py-2">
-              <StatusBadge status={s.status} />
-            </td>
-            {actionable ? (
-              <td className="py-2 text-right">
-                {s.status === "pending" ? (
-                  <span className="flex justify-end gap-2">
-                    {onExecute ? (
-                      <button
-                        onClick={() => onExecute(s.id)}
-                        className="rounded-md px-2 py-1 text-xs text-emerald-400 hover:text-emerald-300"
-                      >
-                        Execute
-                      </button>
-                    ) : null}
-                    {onCancel ? (
-                      <button
-                        onClick={() => onCancel(s.id)}
-                        className="rounded-md px-2 py-1 text-xs text-red-400 hover:text-red-300"
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </span>
-                ) : null}
+        {sorted.map((s) => {
+          const isPending = pendingIds?.has(s.id) ?? false;
+          return (
+            <tr key={s.id} className="border-b border-zinc-900">
+              <td className="py-2 text-zinc-500">
+                <Link href={`/settlements/${s.id}`} className="hover:underline">
+                  {s.id}
+                </Link>
               </td>
-            ) : null}
-          </tr>
-        ))}
+              <td className="py-2 font-mono text-xs text-zinc-300">{s.anchor}</td>
+              <td className="py-2 font-mono text-zinc-100">{s.asset}</td>
+              <td className="py-2 text-zinc-200">{formatAmount(s.amount)}</td>
+              <td className="py-2 text-zinc-400">{formatAmount(s.fee)}</td>
+              <td className="py-2">
+                <StatusBadge status={s.status} />
+              </td>
+              {actionable ? (
+                <td className="py-2 text-right">
+                  {s.status === "pending" ? (
+                    <span className="flex justify-end gap-2">
+                      {onExecute ? (
+                        <button
+                          onClick={() => onExecute(s.id)}
+                          disabled={isPending}
+                          className="rounded-md px-2 py-1 text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                        >
+                          Execute
+                        </button>
+                      ) : null}
+                      {onCancel ? (
+                        <button
+                          onClick={() => onCancel(s.id)}
+                          disabled={isPending}
+                          className="rounded-md px-2 py-1 text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </td>
+              ) : null}
+            </tr>
+          );
+        })}
       </tbody>
       <tfoot>
         <tr className="border-t border-zinc-800 font-medium">
