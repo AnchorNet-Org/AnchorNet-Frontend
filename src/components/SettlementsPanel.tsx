@@ -73,6 +73,11 @@ export function SettlementsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
+    // The "loading" transition happens at the call site that changes `nonce`
+    // or `pageSize` (reload(), changePageSize()) rather than here, since
+    // setting state synchronously in an effect body triggers a cascading
+    // re-render (react-hooks/set-state-in-effect). The initial state is
+    // already "loading" from useState's initializer above.
     fetchSettlements({ page: 1, pageSize, signal: controller.signal })
       .then(({ settlements, pagination }) =>
         setState({ status: "ready", settlements, pagination }),
