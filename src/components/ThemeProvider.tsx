@@ -55,6 +55,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Resolve on the client only, after mount.
     const resolved = resolveTheme();
     const stored = loadTheme();
+    // The client-only value intentionally replaces the hydration placeholder.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(resolved);
     setIsOverridden(stored !== null);
     applyTheme(resolved);
