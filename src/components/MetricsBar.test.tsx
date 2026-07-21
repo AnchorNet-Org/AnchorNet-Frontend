@@ -114,6 +114,28 @@ describe("MetricsBar", () => {
     });
     expect(fetchMetrics).toHaveBeenCalledTimes(3);
 
+  it("formats large counts with commas", async () => {
+    vi.mocked(fetchMetrics).mockResolvedValue({
+      anchors: 1250,
+      activeAnchors: 500,
+      pools: 12480,
+      totalLiquidity: 12345,
+      settlements: 12480,
+      pendingSettlements: 4,
+    });
+
+    render(<MetricsBar />);
+
+    await waitFor(() => {
+      // Active anchors formatted as "500/1,250"
+      expect(screen.getByText("500/1,250")).toBeInTheDocument();
+    });
+    // Pools count formatted with commas
+    expect(screen.getByText("12,480")).toBeInTheDocument();
+    // Settlements count formatted with commas
+    expect(screen.getByText("12,480")).toBeInTheDocument();
+  });
+
     // Silent interval ticks don't show the button spinner.
     const button = screen.getByRole("button", { name: /refresh metrics/i });
     expect(button.querySelector(".animate-spin")).toBeNull();

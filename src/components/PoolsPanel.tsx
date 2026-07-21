@@ -80,14 +80,14 @@ export function PoolsPanel() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Assets" value={String(state.pools.length)} />
+        <StatCard label="Assets" value={formatAmount(state.pools.length)} />
         <StatCard
           label="Total liquidity"
           value={formatAmount(totalLiquidity)}
         />
         <StatCard
           label="Anchor positions"
-          value={String(positions)}
+          value={formatAmount(positions)}
           hint="across all assets"
         />
       </div>

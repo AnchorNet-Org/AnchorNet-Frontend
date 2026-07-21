@@ -126,3 +126,25 @@ describe("SettlementForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });
+
+  it("rejects submission when asset case differs and exceeds liquidity", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SettlementForm
+        onSubmit={onSubmit}
+        availableLiquidity={{ USDC: 1000 }}
+      />,
+    );
+    // Use lowercase asset code
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "usdc" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "1500" },
+    });
+    fireEvent.click(screen.getByText("Open settlement"));
+    // Expect liquidity error
+    expect(screen.getByText(/Insufficient liquidity/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
