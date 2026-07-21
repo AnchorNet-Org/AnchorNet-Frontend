@@ -9,4 +9,18 @@ describe("SiteFooter", () => {
       screen.getByText(/liquidity coordination for Stellar anchors/i),
     ).toBeInTheDocument();
   });
+
+  it("renders the current year and a GitHub org link", () => {
+    const year = new Date().getFullYear();
+    render(<SiteFooter />);
+
+    // Year is rendered
+    expect(screen.getByText(new RegExp(String(year)))).toBeInTheDocument();
+
+    // GitHub org link with safe attributes
+    const link = screen.getByRole("link", { name: /github/i });
+    expect(link).toHaveAttribute("href", "https://github.com/AnchorNet-Org");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 });
