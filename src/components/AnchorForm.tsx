@@ -48,6 +48,9 @@ export function AnchorForm({
       Promise.resolve().then(() => {
         if (!cancelled) setErrors((prev) => ({ ...prev, id: serverError }));
       });
+      // Mirrors an externally supplied server validation error into the form.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setErrors((prev) => ({ ...prev, id: serverError }));
     }
     return () => {
       cancelled = true;

@@ -45,6 +45,7 @@ vi.mock("@/lib/api", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mockSearchParamsString = "";
+  vi.mocked(fetchPools).mockResolvedValue([]);
 });
 
 function page(
