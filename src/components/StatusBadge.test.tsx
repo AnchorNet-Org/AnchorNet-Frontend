@@ -8,7 +8,7 @@ import { formatStatus } from "@/lib/format";
 const KNOWN_VARIANT_CLASSES: Record<SettlementStatus, string> = {
   pending: "text-amber-300",
   executed: "text-emerald-300",
-  cancelled: "text-zinc-300",
+  cancelled: "text-zinc-100",
 };
 
 /** Neutral styling used for a status with no defined variant. */
