@@ -20,13 +20,18 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   }
 
   return (
-    <button
-      type="button"
-      onClick={copy}
-      className="rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:text-zinc-200"
-      aria-label={copied ? "Copied" : label}
-    >
-      {copied ? "Copied" : label}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={copy}
+        className="rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:text-zinc-200"
+        aria-label={copied ? "Copied" : label}
+      >
+        {copied ? "Copied" : label}
+      </button>
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied to clipboard" : ""}
+      </span>
+    </>
   );
 }
