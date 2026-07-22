@@ -12,6 +12,7 @@ import { Settlement, Pagination, Pool } from "@/lib/types";
 import { fetchPools } from "@/lib/api";
 import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
@@ -21,6 +22,12 @@ import { SettlementForm } from "./SettlementForm";
 import { SettlementTable } from "./SettlementTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
+
+/**
+ * Delay (ms) before a paused search query is applied to the filtered list.
+ * The input itself stays bound to the immediate value, so typing never lags.
+ */
+const SEARCH_DEBOUNCE_MS = 200;
 
 /** Selectable page sizes for the settlements list; the first is the default. */
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -215,10 +222,14 @@ export function SettlementsPanel() {
     }
   }
 
+  // Debounce only the value that drives filtering so large settlement lists
+  // aren't re-filtered on every keystroke; the input stays bound to `query`.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+
   const visibleSettlements =
     state.status === "ready"
       ? state.settlements.filter((s) =>
-          matchesQuery([s.id, s.anchor, s.asset], query),
+          matchesQuery([s.id, s.anchor, s.asset], debouncedQuery),
         )
       : [];
 

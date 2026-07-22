@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { SettlementsPanel } from "./SettlementsPanel";
 import { ToastProvider } from "./ToastProvider";
@@ -115,8 +116,55 @@ describe("SettlementsPanel", () => {
       target: { value: "anchorA" },
     });
 
+    // Filtering is debounced, so the non-matching row only drops out once the
+    // debounce delay has elapsed.
+    await waitFor(() =>
+      expect(screen.queryByText("other")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText("anchorA")).toBeInTheDocument();
-    expect(screen.queryByText("other")).not.toBeInTheDocument();
+  });
+
+  it("debounces the search filter, updating the list only after the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSettlements).mockResolvedValue(
+        page([sample, { ...sample, id: 2, anchor: "other" }]),
+      );
+
+      renderPanel();
+
+      // Flush the mocked fetch promise and mount effects so the list renders.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search settlements"), {
+        target: { value: "anchorA" },
+      });
+
+      // The input reflects the keystroke immediately (no typing lag)...
+      expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+      // ...but the filtered list has not been recomputed yet.
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Just before the debounce elapses, the list is still unchanged.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Once the debounce delay elapses, the non-matching row is filtered out.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.queryByText("other")).not.toBeInTheDocument();
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the no-data empty state without a clear-filters action", async () => {
@@ -142,14 +190,19 @@ describe("SettlementsPanel", () => {
       target: { value: "zzz" },
     });
 
-    expect(
-      screen.getByText("No settlements match your search."),
-    ).toBeInTheDocument();
+    // The no-results state appears only after the debounce delay elapses.
+    await waitFor(() =>
+      expect(
+        screen.getByText("No settlements match your search."),
+      ).toBeInTheDocument(),
+    );
     expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("anchorA")).toBeInTheDocument(),
+    );
     expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
