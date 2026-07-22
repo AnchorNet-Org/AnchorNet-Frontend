@@ -45,7 +45,11 @@ export function SettlementForm({
   pending,
   availableLiquidity,
 }: {
-  onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
+  onSubmit: (input: {
+    anchor: string;
+    asset: string;
+    amount: number;
+  }) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
   availableLiquidity?: Record<string, number>;
 }) {
@@ -59,17 +63,19 @@ export function SettlementForm({
   const assetErrorId = "settlement-asset-error";
   const amountErrorId = "settlement-amount-error";
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const nextErrors = validate(anchor, asset, amount, availableLiquidity);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSubmit({
+    const result = await onSubmit({
       anchor: anchor.trim(),
       asset: asset.trim(),
       amount: Number(amount),
     });
+    if (result === false) return;
+
     setAmount("");
     setErrors({});
   }
