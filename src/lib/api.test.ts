@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { fetchPools, requestQuote, apiRequest, apiTextRequest, ApiRequestError, isAbortError } from "./api";
+import { fetchPools, requestQuote, apiRequest, apiTextRequest, ApiRequestError, isAbortError, retryDelayMs } from "./api";
 
 function mockFetch(
   status: number,
@@ -201,7 +201,7 @@ describe("apiRequest — retry on 5xx", () => {
     vi.stubGlobal("fetch", fn);
 
     const promise = apiRequest<{ ok: boolean }>("/x");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     const result = await promise;
 
     expect(result.ok).toBe(true);
@@ -217,8 +217,8 @@ describe("apiRequest — retry on 5xx", () => {
     vi.stubGlobal("fetch", fn);
 
     const promise = apiRequest("/x").catch((e: unknown) => e);
-    await vi.advanceTimersByTimeAsync(500);
     await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
 
     await expect(Promise.resolve(promise)).resolves.toMatchObject({ status: 503 });
     expect(fn).toHaveBeenCalledTimes(3);
@@ -262,6 +262,15 @@ describe("apiRequest — retry on 5xx", () => {
     await expect(promise).rejects.toSatisfy((e: unknown) => isAbortError(e));
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  it("adds bounded jitter to retry delays", async () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0.75);
+    const delays = [retryDelayMs(0), retryDelayMs(0)];
+
+    expect(delays).toEqual([500, 875]);
+    expect(delays.every((delay) => typeof delay === "number" && delay >= 500 && delay <= 1000)).toBe(true);
+    expect(randomSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("apiTextRequest — retry on 5xx", () => {
@@ -273,7 +282,7 @@ describe("apiTextRequest — retry on 5xx", () => {
     vi.stubGlobal("fetch", fn);
 
     const promise = apiTextRequest("/export");
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     const result = await promise;
 
     expect(result).toBe("csv-data");

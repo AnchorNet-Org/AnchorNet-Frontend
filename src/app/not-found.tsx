@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "Page not found â€“ AnchorNet",
+  title: "Page not found – AnchorNet",
   description: "The page you're looking for doesn't exist.",
 };
 
