@@ -502,6 +502,26 @@ describe("SettlementsPanel", () => {
     expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
   });
 
+  it("exposes an accessible group for the toolbar controls", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const toolbar = screen.getByRole("search", {
+      name: "Settlements export, page size, and search",
+    });
+    expect(toolbar).toContainElement(
+      screen.getByRole("button", { name: "Export CSV" }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Rows per page"),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Search settlements"),
+    );
+  });
+
   it("exports settlements as CSV", async () => {
     const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));

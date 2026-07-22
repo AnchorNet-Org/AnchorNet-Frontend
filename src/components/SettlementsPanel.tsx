@@ -245,8 +245,8 @@ export function SettlementsPanel() {
         ) : (
           <>
             {state.settlements.length > 0 ? (
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-                {/* Note: Matching frontend search semantics server-side isn't feasible in scope. 
+              <div role="search" aria-label="Settlements export, page size, and search" className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                {/* Note: Matching frontend search semantics server-side isn't feasible in scope.
                     We explicitly document that the export covers the full dataset. */}
                 <button
                   onClick={handleExport}
