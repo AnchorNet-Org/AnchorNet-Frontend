@@ -14,6 +14,7 @@ import {
   loadAccount,
   saveAccount,
   clearAccount,
+  STORAGE_KEY,
 } from "@/lib/wallet";
 
 export interface WalletContextValue {
@@ -45,6 +46,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Sync wallet state across browser tabs: when another tab connects or
+  // disconnects, the browser fires a "storage" event that we can react to.
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      // event.key is null when localStorage.clear() is called
+      if (event.key !== STORAGE_KEY && event.key !== null) return;
+      setAccount(loadAccount());
+    }
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const connect = useCallback(() => {

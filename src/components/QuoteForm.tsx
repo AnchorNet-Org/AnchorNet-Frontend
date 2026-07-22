@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Quote } from "@/lib/types";
-import { requestQuote } from "@/lib/api";
+import { ApiRequestError, fetchPools, requestQuote } from "@/lib/api";
 import { feeInBps, formatAmount } from "@/lib/format";
 import { Card } from "./Card";
+import { CopyButton } from "./CopyButton";
 
 type Result =
   | { status: "idle" }
@@ -16,11 +17,34 @@ const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
   "text-zinc-100 outline-none focus:border-zinc-600";
 
+const DATALIST_ID = "quote-form-asset-list";
+
+interface QuoteFormProps {
+  /** Optional list of known asset codes to offer as autocomplete suggestions. */
+  knownAssets?: string[];
+}
+
 /** Form that requests a routing quote for an asset/amount pair. */
-export function QuoteForm() {
+export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("1000");
+  const [assetOptions, setAssetOptions] = useState<string[]>(
+    knownAssets ?? [],
+  );
   const [result, setResult] = useState<Result>({ status: "idle" });
+
+  // When no assets are passed in as props, fetch them from the pools API so
+  // the datalist stays in sync with actual supported assets.
+  useEffect(() => {
+    if (knownAssets !== undefined) return; // caller supplied the list
+    const controller = new AbortController();
+    fetchPools(controller.signal)
+      .then((pools) => setAssetOptions(pools.map((p) => p.asset)))
+      .catch(() => {
+        // silently ignore — free-form entry still works
+      });
+    return () => controller.abort();
+  }, [knownAssets]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -35,7 +59,12 @@ export function QuoteForm() {
       const quote = await requestQuote({ asset: asset.trim(), amount: numeric });
       setResult({ status: "ready", quote });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Quote failed.";
+      const message =
+        err instanceof ApiRequestError && err.status === 429
+          ? "You're quoting too quickly — try again in a moment."
+          : err instanceof Error
+            ? err.message
+            : "Quote failed.";
       setResult({ status: "error", message });
     }
   }
@@ -51,7 +80,15 @@ export function QuoteForm() {
             onChange={(e) => setAsset(e.target.value)}
             className={inputClass}
             placeholder="USDC"
+            list={assetOptions.length > 0 ? DATALIST_ID : undefined}
           />
+          {assetOptions.length > 0 && (
+            <datalist id={DATALIST_ID}>
+              {assetOptions.map((code) => (
+                <option key={code} value={code} />
+              ))}
+            </datalist>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs text-zinc-400">Amount</label>
@@ -85,12 +122,22 @@ export function QuoteForm() {
             {formatAmount(result.quote.fee)} (
             {feeInBps(result.quote.fee, result.quote.amount)})
           </Row>
-          <Row label="Route">
-            {result.quote.route.join(" → ") || "—"}
-          </Row>
+          <RouteRow route={result.quote.route} />
         </dl>
       ) : null}
     </Card>
+  );
+}
+
+function RouteRow({ route }: { route: string[] }) {
+  const routeText = route.join(" → ");
+  return (
+    <Row label="Route">
+      <span className="inline-flex items-center gap-1">
+        {routeText || "—"}
+        {routeText ? <CopyButton text={routeText} /> : null}
+      </span>
+    </Row>
   );
 }
 

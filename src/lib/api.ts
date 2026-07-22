@@ -51,6 +51,16 @@ async function parseError(res: Response): Promise<ApiRequestError> {
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 500;
 
+/**
+ * Uses equal jitter so retries retain exponential growth while callers that
+ * fail together do not retry in lockstep. Each delay is between one and two
+ * times the exponential base delay.
+ */
+export function retryDelayMs(attempt: number): number {
+  const baseDelay = INITIAL_BACKOFF_MS * 2 ** attempt;
+  return baseDelay + Math.random() * baseDelay;
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -109,7 +119,7 @@ export async function apiRequest<T>(
       throw lastError;
     }
 
-    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+    await sleep(retryDelayMs(attempt), init?.signal ?? undefined);
   }
 
   throw lastError!;
@@ -141,7 +151,7 @@ export async function apiTextRequest(
       throw lastError;
     }
 
-    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+    await sleep(retryDelayMs(attempt), init?.signal ?? undefined);
   }
 
   throw lastError!;

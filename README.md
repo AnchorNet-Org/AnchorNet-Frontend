@@ -31,11 +31,12 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Configuration
 
 The dashboard talks to the AnchorNet API. Copy `.env.example` to `.env.local`
-and point it at your backend:
+and point it at your backend and define your frontend base URL:
 
 ```bash
 cp .env.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:3001
+# NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 ## Pages

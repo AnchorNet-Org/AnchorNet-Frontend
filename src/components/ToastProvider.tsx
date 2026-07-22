@@ -35,8 +35,16 @@ const INITIAL_STACK: ToastStackState = { toasts: [], droppedCount: 0 };
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<ToastStackState>(INITIAL_STACK);
   const nextId = useRef(1);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const dismiss = useCallback((id: number) => {
+    if (!mountedRef.current) return;
     setStack((prev) => {
       const toasts = dismissToast(prev.toasts, id);
       // Once the stack is back under the cap, the dropped count is stale.
@@ -46,6 +54,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const notify = useCallback((kind: Toast["kind"], message: string) => {
+    if (!mountedRef.current) return;
     const toast: Toast = { id: nextId.current++, kind, message };
     setStack((prev) => {
       const { toasts, droppedCount } = pushToast(prev.toasts, toast);

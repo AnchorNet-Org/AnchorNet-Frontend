@@ -8,12 +8,15 @@ import {
 } from "./format";
 
 describe("formatAmount", () => {
-  it("adds thousands separators", () => {
-    expect(formatAmount(1234567)).toBe("1,234,567");
+  it("preserves fractional digits up to 7 decimal places", () => {
+    expect(formatAmount(1234.5678)).toBe("1,234.5678");
+    expect(formatAmount(0.0000001)).toBe("0.0000001");
+    expect(formatAmount(1000.6)).toBe("1,000.6");
   });
 
-  it("drops fractional digits", () => {
-    expect(formatAmount(1000.6)).toBe("1,001");
+  it("trims trailing zeros for whole numbers", () => {
+    expect(formatAmount(1000)).toBe("1,000");
+    expect(formatAmount(1234567)).toBe("1,234,567");
   });
 });
 
