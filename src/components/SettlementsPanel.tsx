@@ -150,16 +150,6 @@ export function SettlementsPanel() {
     }
   }
 
-  async function run(action: () => Promise<unknown>, successMessage: string) {
-    try {
-      await action();
-      notify("success", successMessage);
-      reload();
-    } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Request failed");
-    }
-  }
-
   async function runSettlementAction(
     action: () => Promise<Settlement>,
     successMessage: string,
@@ -188,13 +178,19 @@ export function SettlementsPanel() {
     anchor: string;
     asset: string;
     amount: number;
-  }) {
+  }): Promise<boolean> {
     setPending(true);
-    await run(
-      () => openSettlement(input),
-      `Opened a settlement for ${input.amount} ${input.asset}.`,
-    );
-    setPending(false);
+    try {
+      await openSettlement(input);
+      notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
+      reload();
+      return true;
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Request failed");
+      return false;
+    } finally {
+      setPending(false);
+    }
   }
 
   async function handleExport() {
@@ -245,10 +241,13 @@ export function SettlementsPanel() {
         ) : (
           <>
             {state.settlements.length > 0 ? (
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <div role="search" aria-label="Settlements export, page size, and search" className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                {/* Note: Matching frontend search semantics server-side isn't feasible in scope.
+                    We explicitly document that the export covers the full dataset. */}
                 <button
                   onClick={handleExport}
                   disabled={exporting}
+                  title={query ? "Export includes all settlements, ignoring the current search filter" : undefined}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
                 >
                   {exporting ? "Exporting…" : "Export CSV"}

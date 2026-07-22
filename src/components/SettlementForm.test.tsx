@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SettlementForm } from "./SettlementForm";
 
 describe("SettlementForm", () => {
@@ -36,7 +36,7 @@ describe("SettlementForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("submits trimmed values and resets the amount field", () => {
+  it("submits trimmed values and resets the amount field", async () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} />);
 
@@ -47,12 +47,14 @@ describe("SettlementForm", () => {
     fireEvent.change(amountInput, { target: { value: "500" } });
     fireEvent.click(screen.getByText("Open settlement"));
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      anchor: "anchor-a",
-      asset: "USDC",
-      amount: 500,
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        anchor: "anchor-a",
+        asset: "USDC",
+        amount: 500,
+      });
+      expect(amountInput).toHaveValue("");
     });
-    expect(amountInput).toHaveValue("");
   });
 
   it("clears a field's error as soon as it is edited", () => {
@@ -65,6 +67,23 @@ describe("SettlementForm", () => {
       target: { value: "a" },
     });
     expect(screen.queryByText("Anchor id is required.")).not.toBeInTheDocument();
+  });
+
+  it("does not clear amount field if submission fails", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(false);
+    render(<SettlementForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchor-a" },
+    });
+    const amountInput = screen.getByPlaceholderText("Amount");
+    fireEvent.change(amountInput, { target: { value: "100" } });
+    fireEvent.click(screen.getByText("Open settlement"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+      expect(amountInput).toHaveValue("100");
+    });
   });
 
   it("clears all field values, errors, and focuses the anchor field after reset", () => {
@@ -145,7 +164,7 @@ describe("SettlementForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("submits amount within available liquidity", () => {
+  it("submits amount within available liquidity", async () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} availableLiquidity={{ USDC: 100 }} />);
 
@@ -160,10 +179,12 @@ describe("SettlementForm", () => {
     });
     fireEvent.click(screen.getByText("Open settlement"));
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      anchor: "anchor-a",
-      asset: "USDC",
-      amount: 100,
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        anchor: "anchor-a",
+        asset: "USDC",
+        amount: 100,
+      });
     });
   });
 });
