@@ -57,6 +57,19 @@ describe("RouteError", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the error digest when present", () => {
+    const error = new Error("Server error occurred") as Error & { digest: string };
+    error.digest = "NEXT_JS_DIGEST_123";
+    render(<RouteError error={error} reset={() => {}} />);
+    expect(screen.getByText("Reference: NEXT_JS_DIGEST_123")).toBeInTheDocument();
+  });
+
+  it("does not render reference line when error digest is absent", () => {
+    const error = new Error("Client error occurred");
+    render(<RouteError error={error} reset={() => {}} />);
+    expect(screen.queryByText(/Reference:/)).not.toBeInTheDocument();
+  });
+
   it("calls reset when 'Try again' is clicked", () => {
     const reset = vi.fn();
     render(<RouteError error={new Error("boom")} reset={reset} />);
