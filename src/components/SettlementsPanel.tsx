@@ -188,13 +188,19 @@ export function SettlementsPanel() {
     anchor: string;
     asset: string;
     amount: number;
-  }) {
+  }): Promise<boolean> {
     setPending(true);
-    await run(
-      () => openSettlement(input),
-      `Opened a settlement for ${input.amount} ${input.asset}.`,
-    );
-    setPending(false);
+    try {
+      await openSettlement(input);
+      notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
+      reload();
+      return true;
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Request failed");
+      return false;
+    } finally {
+      setPending(false);
+    }
   }
 
   async function handleExport() {

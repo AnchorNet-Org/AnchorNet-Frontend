@@ -293,7 +293,7 @@ describe("ToastProvider", () => {
     let capturedNotify: ((kind: Toast["kind"], message: string) => void) | undefined;
     let capturedDismiss: ((id: number) => void) | undefined;
 
-    function CaptureToastContext() {
+    function CaptureToast() {
       const { notify, dismiss } = useToast();
       useEffect(() => {
         capturedNotify = notify;
@@ -304,22 +304,21 @@ describe("ToastProvider", () => {
 
     const { unmount } = render(
       <ToastProvider>
-        <CaptureToastContext />
+        <CaptureToast />
       </ToastProvider>,
     );
-    // Unmount the provider while keeping reference to notify and dismiss.
     unmount();
 
-    // Call notify and dismiss after unmount; should be safe no-op.
     capturedNotify?.("success", "post-unmount");
-    capturedDismiss?.(123);
+    capturedDismiss?.(999);
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
   });
 
-  it("retains droppedCount when dismiss is called for a non-existent toast id during a burst", () => {
+  it("retains droppedCount when dismissing a non-existent toast id while cap is exceeded", () => {
     let capturedDismiss: ((id: number) => void) | undefined;
+
     function CaptureDismiss() {
       const { dismiss } = useToast();
       useEffect(() => {
@@ -330,15 +329,15 @@ describe("ToastProvider", () => {
 
     render(
       <ToastProvider>
-        <CaptureDismiss />
         <BurstTrigger count={MAX_TOASTS + 2} />
+        <CaptureDismiss />
       </ToastProvider>,
     );
 
     expect(screen.getByText("+2 more")).toBeInTheDocument();
 
     act(() => {
-      capturedDismiss?.(999999);
+      capturedDismiss?.(99999);
     });
 
     expect(screen.getByText("+2 more")).toBeInTheDocument();
