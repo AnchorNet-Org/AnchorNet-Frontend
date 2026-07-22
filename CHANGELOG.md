@@ -6,6 +6,8 @@ All notable changes to the AnchorNet web app are documented here.
 
 ### Added
 
+- **UX:** added a support link to the AnchorNet GitHub issues page on all error
+  boundaries via the shared `RouteError` component.
 - **Accessibility:** `aria-sort` on every sortable table header
   (`AnchorTable`, `SettlementTable`, `PoolTable`), reflecting `none`,
   `ascending`, or `descending`.

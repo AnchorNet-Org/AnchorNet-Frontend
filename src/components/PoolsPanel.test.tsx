@@ -119,6 +119,42 @@ describe("PoolsPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides the search input when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+
+    await screen.findByText(/no liquidity pools yet/i);
+    expect(
+      screen.queryByLabelText("Search pools"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the search input and keeps the Refresh button when pools exist", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the Refresh button available even when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+    await screen.findByText(/no liquidity pools yet/i);
+
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows a no-results empty state when the search matches nothing", async () => {
     vi.mocked(fetchPools).mockResolvedValue([
       { asset: "USDC", total: 1000, anchors: 2 },

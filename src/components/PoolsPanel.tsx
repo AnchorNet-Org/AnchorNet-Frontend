@@ -73,20 +73,24 @@ export function PoolsPanel() {
         </div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-200">Pools</h2>
-          <div
-            role="search"
-            aria-label="Pools search and refresh"
-            className="flex items-center gap-2"
-          >
-            <input
-              ref={searchRef}
-              type="text"
-              aria-label="Search pools"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pools…"
-              className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
-            />
+          <div className="flex items-center gap-2">
+            {state.data.length > 0 && (
+              <div
+                role="search"
+                aria-label="Pools search"
+                className="flex items-center gap-2"
+              >
+                <input
+                  ref={searchRef}
+                  type="text"
+                  aria-label="Search pools"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search pools…"
+                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
+                />
+              </div>
+            )}
             <button
               onClick={reload}
               className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
