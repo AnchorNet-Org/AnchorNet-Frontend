@@ -5,7 +5,7 @@ import { SettlementsPanel } from "@/components/SettlementsPanel";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
-  title: "Settlements â€“ AnchorNet",
+  title: "Settlements – AnchorNet",
   description: "Open and manage cross-anchor settlements.",
 };
 

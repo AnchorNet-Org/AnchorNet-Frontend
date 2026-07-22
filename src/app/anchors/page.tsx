@@ -5,7 +5,7 @@ import { AnchorsPanel } from "@/components/AnchorsPanel";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
-  title: "Anchors â€“ AnchorNet",
+  title: "Anchors – AnchorNet",
   description: "Register and manage AnchorNet liquidity anchors.",
 };
 

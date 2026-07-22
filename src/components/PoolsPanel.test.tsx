@@ -3,12 +3,24 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PoolsPanel } from "./PoolsPanel";
 import { fetchPools } from "@/lib/api";
 
+const mockReplace = vi.fn();
+let mockSearchParamsString = "";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+  usePathname: () => "/dashboard",
+}));
+
 vi.mock("@/lib/api", () => ({
   fetchPools: vi.fn(),
+  isAbortError: (err: unknown) =>
+    err instanceof DOMException && err.name === "AbortError",
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParamsString = "";
 });
 
 describe("PoolsPanel", () => {
@@ -63,6 +75,37 @@ describe("PoolsPanel", () => {
     expect(screen.queryByText("EURC")).not.toBeInTheDocument();
   });
 
+  it("hydrates the search query from the URL querystring on load", async () => {
+    mockSearchParamsString = "q=usdc";
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+      { asset: "EURC", total: 500, anchors: 1 },
+    ]);
+
+    render(<PoolsPanel />);
+
+    expect(await screen.findByText("USDC")).toBeInTheDocument();
+    expect(screen.queryByText("EURC")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search pools")).toHaveValue("usdc");
+  });
+
+  it("updates the URL querystring when the search query changes", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    fireEvent.change(screen.getByLabelText("Search pools"), {
+      target: { value: "usdc" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith("/dashboard?q=usdc", {
+      scroll: false,
+    });
+  });
+
   it("shows the no-data empty state without a clear-filters action", async () => {
     vi.mocked(fetchPools).mockResolvedValue([]);
 
@@ -74,6 +117,42 @@ describe("PoolsPanel", () => {
     expect(
       screen.queryByRole("button", { name: "Clear filters" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides the search input when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+
+    await screen.findByText(/no liquidity pools yet/i);
+    expect(
+      screen.queryByLabelText("Search pools"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the search input and keeps the Refresh button when pools exist", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the Refresh button available even when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+    await screen.findByText(/no liquidity pools yet/i);
+
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
   });
 
   it("shows a no-results empty state when the search matches nothing", async () => {

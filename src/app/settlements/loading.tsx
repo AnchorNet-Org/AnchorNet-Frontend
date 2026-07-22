@@ -1,10 +1,10 @@
 import { PageShell } from "@/components/PageShell";
-import { Spinner } from "@/components/Spinner";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export default function SettlementsLoading() {
   return (
     <PageShell>
-        <Spinner label="Loading settlementsâ€¦" />
+        <TableSkeleton columns={6} />
     </PageShell>
   );
 }

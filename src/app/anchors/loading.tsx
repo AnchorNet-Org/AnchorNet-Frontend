@@ -1,10 +1,10 @@
 import { PageShell } from "@/components/PageShell";
-import { Spinner } from "@/components/Spinner";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export default function AnchorsLoading() {
   return (
     <PageShell>
-        <Spinner label="Loading anchorsâ€¦" />
+        <TableSkeleton columns={3} />
     </PageShell>
   );
 }

@@ -1,11 +1,13 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PageShell } from "@/components/PageShell";
 import { MetricsBar } from "@/components/MetricsBar";
 import { PoolsPanel } from "@/components/PoolsPanel";
 import { QuoteForm } from "@/components/QuoteForm";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
-  title: "Dashboard â€“ AnchorNet",
+  title: "Dashboard – AnchorNet",
   description: "Live liquidity pools and routing quotes for AnchorNet anchors.",
 };
 
@@ -25,7 +27,10 @@ export default function DashboardPage() {
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <PoolsPanel />
+            {/* PoolsPanel reads useSearchParams() to hydrate its search query. */}
+            <Suspense fallback={<TableSkeleton columns={3} />}>
+              <PoolsPanel />
+            </Suspense>
           </div>
           <div>
             <QuoteForm />

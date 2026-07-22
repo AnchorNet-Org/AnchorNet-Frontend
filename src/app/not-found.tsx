@@ -3,9 +3,16 @@ import Link from "next/link";
 import { PageShell } from "@/components/PageShell";
 
 export const metadata: Metadata = {
-  title: "Page not found â€“ AnchorNet",
+  title: "Page not found – AnchorNet",
   description: "The page you're looking for doesn't exist.",
 };
+
+const secondaryLinks = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/anchors", label: "Anchors" },
+  { href: "/settlements", label: "Settlements" },
+] as const;
+
 
 /** Custom 404 page, shown for any unmatched route. */
 export default function NotFound() {
@@ -24,6 +31,18 @@ export default function NotFound() {
         >
           Back to home
         </Link>
+
+        <nav aria-label="Other destinations" className="mt-4 flex flex-wrap items-center justify-center gap-4">
+          {secondaryLinks.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="text-sm font-medium text-zinc-400 underline underline-offset-4 hover:text-zinc-100"
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
     </PageShell>
   );
 }

@@ -18,9 +18,12 @@ function getSortValue(anchor: Anchor, key: SortKey): string | number {
 export function AnchorTable({
   anchors,
   onDeregister,
+  deregisteringIds,
 }: {
   anchors: Anchor[];
   onDeregister?: (id: string) => void;
+  /** Ids of anchors with a deactivation currently in flight. */
+  deregisteringIds?: Set<string>;
 }) {
   const { sorted, sort, requestSort } = useSortableData<Anchor, SortKey>(
     anchors,
@@ -81,7 +84,13 @@ export function AnchorTable({
                 {anchor.active ? (
                   <button
                     onClick={() => onDeregister(anchor.id)}
-                    className="rounded-md px-2 py-1 text-xs text-red-400 hover:text-red-300"
+                    disabled={deregisteringIds?.has(anchor.id) ?? false}
+                    aria-disabled={deregisteringIds?.has(anchor.id) ?? false}
+                    className={`rounded-md px-2 py-1 text-xs ${
+                      deregisteringIds?.has(anchor.id)
+                        ? "cursor-not-allowed text-red-400/40"
+                        : "text-red-400 hover:text-red-300"
+                    }`}
                   >
                     Deactivate
                   </button>
