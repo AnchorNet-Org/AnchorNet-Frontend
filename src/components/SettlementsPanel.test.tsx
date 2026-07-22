@@ -265,6 +265,35 @@ describe("SettlementsPanel", () => {
     );
   });
 
+  it("surfaces a field-level error on failed open settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockRejectedValue(new Error("Insufficient liquidity"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => {
+      expect(openSettlement).toHaveBeenCalledWith({
+        anchor: "anchorA",
+        asset: "USDC",
+        amount: 400,
+      });
+      expect(screen.getAllByText("Insufficient liquidity").length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByPlaceholderText("Amount")).toHaveAttribute("aria-invalid", "true");
+    });
+  });
+
   it("blocks opening a settlement when amount exceeds available liquidity", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([]));
     vi.mocked(fetchPools).mockResolvedValue([{ asset: "USDC", total: 100, anchors: 1 }]);

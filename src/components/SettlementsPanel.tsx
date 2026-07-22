@@ -50,6 +50,7 @@ export function SettlementsPanel() {
   // Empty on initial load so nothing is announced until the user paginates.
   const [loadMoreAnnouncement, setLoadMoreAnnouncement] = useState("");
   const [pending, setPending] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
   const [pools, setPools] = useState<Pool[]>([]);
@@ -150,16 +151,6 @@ export function SettlementsPanel() {
     }
   }
 
-  async function run(action: () => Promise<unknown>, successMessage: string) {
-    try {
-      await action();
-      notify("success", successMessage);
-      reload();
-    } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Request failed");
-    }
-  }
-
   async function runSettlementAction(
     action: () => Promise<Settlement>,
     successMessage: string,
@@ -190,11 +181,18 @@ export function SettlementsPanel() {
     amount: number;
   }) {
     setPending(true);
-    await run(
-      () => openSettlement(input),
-      `Opened a settlement for ${input.amount} ${input.asset}.`,
-    );
-    setPending(false);
+    setServerError(null);
+    try {
+      await openSettlement(input);
+      notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
+      reload();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Request failed";
+      notify("error", message);
+      setServerError(message);
+    } finally {
+      setPending(false);
+    }
   }
 
   async function handleExport() {
@@ -235,7 +233,7 @@ export function SettlementsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Open settlement
         </h2>
-        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} />
+        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} serverError={serverError || undefined} />
       </Card>
       <Card>
         {state.status === "loading" ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useRef, useState, useEffect } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
@@ -44,15 +44,24 @@ export function SettlementForm({
   onSubmit,
   pending,
   availableLiquidity,
+  serverError,
 }: {
   onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
   pending?: boolean;
   availableLiquidity?: Record<string, number>;
+  serverError?: string;
 }) {
   const [anchor, setAnchor] = useState("");
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+
+  useEffect(() => {
+    if (serverError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setErrors((prev) => ({ ...prev, amount: serverError }));
+    }
+  }, [serverError]);
 
   const anchorRef = useRef<HTMLInputElement>(null);
   const anchorErrorId = "settlement-anchor-error";

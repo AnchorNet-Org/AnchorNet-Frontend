@@ -166,4 +166,25 @@ describe("SettlementForm", () => {
       amount: 100,
     });
   });
+
+  it("displays an externally-supplied serverError", () => {
+    render(<SettlementForm onSubmit={vi.fn()} serverError="Insufficient liquidity" />);
+    expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Amount")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears the serverError when the amount field is edited", () => {
+    const { rerender } = render(
+      <SettlementForm onSubmit={vi.fn()} serverError="Insufficient liquidity" />,
+    );
+    expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "50" },
+    });
+    expect(screen.queryByText("Insufficient liquidity")).not.toBeInTheDocument();
+
+    rerender(<SettlementForm onSubmit={vi.fn()} />);
+    expect(screen.queryByText("Insufficient liquidity")).not.toBeInTheDocument();
+  });
 });
