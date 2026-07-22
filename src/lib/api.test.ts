@@ -190,6 +190,76 @@ describe("apiRequest — abort behaviour", () => {
 
     await expect(apiRequest("/x")).rejects.toBeInstanceOf(ApiRequestError);
   });
+
+  it("aborts the request with a TIMEOUT error when internal timeout is reached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const promise = apiRequest("/x", { timeout: 1000 }).catch((e: unknown) => e);
+    
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const err = await promise;
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).code).toBe("TIMEOUT");
+    expect((err as ApiRequestError).status).toBe(408);
+  });
+
+  it("allows the caller's AbortSignal to cancel the request before the timeout is reached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const controller = new AbortController();
+    const promise = apiRequest("/x", { signal: controller.signal, timeout: 5000 }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.abort();
+
+    const err = await promise;
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("aborts the request with a TIMEOUT error even if a caller's AbortSignal is also provided but hasn't fired yet", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const controller = new AbortController();
+    const promise = apiRequest("/x", { signal: controller.signal, timeout: 2000 }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const err = await promise;
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).code).toBe("TIMEOUT");
+    expect(isAbortError(err)).toBe(false);
+  });
 });
 
 describe("apiRequest — retry on 5xx", () => {

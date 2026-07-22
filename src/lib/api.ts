@@ -93,6 +93,54 @@ async function doFetch(
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 
+export interface ApiRequestInit extends RequestInit {
+  timeout?: number;
+}
+
+export let globalDefaultTimeoutMs = 10000;
+
+export function setDefaultTimeout(ms: number) {
+  globalDefaultTimeoutMs = ms;
+}
+
+function composeSignals(
+  timeoutMs: number,
+  callerSignal?: AbortSignal,
+): { signal: AbortSignal; cleanup: () => void; hasTimedOut: () => boolean } {
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const onCallerAbort = () => {
+    clearTimeout(timer);
+    controller.abort();
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(timer);
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timer);
+    if (callerSignal) {
+      callerSignal.removeEventListener("abort", onCallerAbort);
+    }
+  };
+
+  const hasTimedOut = () => timedOut;
+
+  return { signal: controller.signal, cleanup, hasTimedOut };
+}
+
 /**
  * Performs a JSON request against the API and returns the parsed body.
  * Throws {@link ApiRequestError} on a non-2xx response.
@@ -100,20 +148,34 @@ async function doFetch(
  */
 export async function apiRequest<T>(
   path: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
   let lastError: ApiRequestError;
   const method = init?.method;
+  const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (init?.signal?.aborted) {
       throw new DOMException("signal is aborted", "AbortError");
     }
 
-    const res = await doFetch(path, init);
-    if (res.ok) return (await res.json()) as T;
-
-    lastError = await parseError(res);
+    const { signal: combinedSignal, cleanup, hasTimedOut } = composeSignals(timeoutMs, init?.signal);
+    let res: Response;
+    try {
+      res = await doFetch(path, { ...init, signal: combinedSignal });
+      if (res.ok) {
+        const body = (await res.json()) as T;
+        return body;
+      }
+      lastError = await parseError(res);
+    } catch (err) {
+      if (hasTimedOut()) {
+        throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
+      }
+      throw err;
+    } finally {
+      cleanup();
+    }
 
     if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
       throw lastError;
@@ -132,20 +194,34 @@ export async function apiRequest<T>(
  */
 export async function apiTextRequest(
   path: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<string> {
   let lastError: ApiRequestError;
   const method = init?.method;
+  const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (init?.signal?.aborted) {
       throw new DOMException("signal is aborted", "AbortError");
     }
 
-    const res = await doFetch(path, init);
-    if (res.ok) return await res.text();
-
-    lastError = await parseError(res);
+    const { signal: combinedSignal, cleanup, hasTimedOut } = composeSignals(timeoutMs, init?.signal);
+    let res: Response;
+    try {
+      res = await doFetch(path, { ...init, signal: combinedSignal });
+      if (res.ok) {
+        const text = await res.text();
+        return text;
+      }
+      lastError = await parseError(res);
+    } catch (err) {
+      if (hasTimedOut()) {
+        throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
+      }
+      throw err;
+    } finally {
+      cleanup();
+    }
 
     if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
       throw lastError;
