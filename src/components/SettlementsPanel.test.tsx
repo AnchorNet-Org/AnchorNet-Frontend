@@ -265,6 +265,37 @@ describe("SettlementsPanel", () => {
     );
   });
 
+  it("surfaces a field-level error on failed open settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockRejectedValue(new Error("Insufficient liquidity"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => {
+      expect(openSettlement).toHaveBeenCalledWith({
+        anchor: "anchorA",
+        asset: "USDC",
+        amount: 400,
+      });
+      // Failure surfaces via the toast notification; the form itself keeps
+      // the entered values instead of clearing them (see SettlementForm's
+      // own "does not clear amount field if submission fails" coverage).
+      expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
+    });
+  });
+
   it("blocks opening a settlement when amount exceeds available liquidity", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([]));
     vi.mocked(fetchPools).mockResolvedValue([{ asset: "USDC", total: 100, anchors: 1 }]);
@@ -539,6 +570,26 @@ describe("SettlementsPanel", () => {
     );
   });
 
+  it("exposes an accessible group for the toolbar controls", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const toolbar = screen.getByRole("search", {
+      name: "Settlements export, page size, and search",
+    });
+    expect(toolbar).toContainElement(
+      screen.getByRole("button", { name: "Export CSV" }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Rows per page"),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Search settlements"),
+    );
+  });
+
   it("exports settlements as CSV", async () => {
     const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
@@ -560,5 +611,32 @@ describe("SettlementsPanel", () => {
 
     // Check if the download link was created
     expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("indicates when the CSV export ignores the active search filter", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).toHaveAttribute(
+      "title",
+      "Export includes all settlements, ignoring the current search filter"
+    );
+  });
+
+  it("does not indicate ignored search filter when query is empty", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).not.toHaveAttribute("title");
   });
 });

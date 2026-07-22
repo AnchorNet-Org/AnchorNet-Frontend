@@ -91,4 +91,22 @@ describe("RouteError", () => {
       expect(reloadMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("support link", () => {
+    it("renders a link to the GitHub issues page", () => {
+      render(<RouteError error={new Error("boom")} reset={() => {}} />);
+      const link = screen.getByRole("link", { name: /still having trouble\? report an issue/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute("href", "https://github.com/AnchorNet-Org/issues");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("renders the link regardless of the variant/title provided", () => {
+      render(<RouteError error={new Error("boom")} reset={() => {}} title="Custom Error Title" />);
+      const link = screen.getByRole("link", { name: /still having trouble\? report an issue/i });
+      expect(link).toBeInTheDocument();
+    });
+  });
 });
+

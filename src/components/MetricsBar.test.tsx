@@ -31,10 +31,13 @@ describe("MetricsBar", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
-  it("shows a loading state before metrics resolve", () => {
+  it("shows a stable four-card skeleton grid before metrics resolve", () => {
     vi.mocked(fetchMetrics).mockReturnValue(new Promise(() => {}));
     render(<MetricsBar />);
-    expect(screen.getByText(/loading metrics/i)).toBeInTheDocument();
+    expect(screen.getByText("Active anchors")).toBeInTheDocument();
+    expect(screen.getByText("Pools")).toBeInTheDocument();
+    expect(screen.getByText("Total liquidity")).toBeInTheDocument();
+    expect(screen.getByText("Settlements")).toBeInTheDocument();
   });
 
   it("renders metrics once loaded", async () => {
