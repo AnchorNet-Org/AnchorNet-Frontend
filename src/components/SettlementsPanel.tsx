@@ -246,9 +246,12 @@ export function SettlementsPanel() {
           <>
             {state.settlements.length > 0 ? (
               <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                {/* Note: Matching frontend search semantics server-side isn't feasible in scope. 
+                    We explicitly document that the export covers the full dataset. */}
                 <button
                   onClick={handleExport}
                   disabled={exporting}
+                  title={query ? "Export includes all settlements, ignoring the current search filter" : undefined}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
                 >
                   {exporting ? "Exporting…" : "Export CSV"}

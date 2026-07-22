@@ -524,4 +524,31 @@ describe("SettlementsPanel", () => {
     // Check if the download link was created
     expect(createObjectURL).toHaveBeenCalled();
   });
+
+  it("indicates when the CSV export ignores the active search filter", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).toHaveAttribute(
+      "title",
+      "Export includes all settlements, ignoring the current search filter"
+    );
+  });
+
+  it("does not indicate ignored search filter when query is empty", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).not.toHaveAttribute("title");
+  });
 });
