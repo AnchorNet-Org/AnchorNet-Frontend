@@ -68,6 +68,7 @@ export function SettlementsPanel() {
 
   const reload = useCallback(() => {
     setState({ status: "loading" });
+    setMoreError(null);
     setNonce((n) => n + 1);
   }, []);
 

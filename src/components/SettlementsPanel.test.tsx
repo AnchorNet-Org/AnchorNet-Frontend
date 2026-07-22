@@ -502,6 +502,43 @@ describe("SettlementsPanel", () => {
     expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
   });
 
+  it("clears a stale Load-more error after a successful open", async () => {
+    // First load: two pages available.
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      // Load-more fails.
+      .mockRejectedValueOnce(new Error("network timeout"))
+      // reload() after open: back to page 1.
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Trigger a failing "Load more".
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(await screen.findByText("network timeout")).toBeInTheDocument();
+
+    // Now successfully open a settlement (fills the form and submits).
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(1));
+
+    // The stale error must be gone once the list has been refreshed.
+    await waitFor(() =>
+      expect(screen.queryByText("network timeout")).not.toBeInTheDocument(),
+    );
+  });
+
   it("exports settlements as CSV", async () => {
     const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
