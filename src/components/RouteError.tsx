@@ -36,6 +36,14 @@ export function RouteError({
       >
         Try again
       </button>
+      <a
+        href="https://github.com/AnchorNet-Org/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 block text-xs text-zinc-500 underline hover:text-zinc-400"
+      >
+        Still having trouble? Report an issue
+      </a>
     </Card>
   );
 }
