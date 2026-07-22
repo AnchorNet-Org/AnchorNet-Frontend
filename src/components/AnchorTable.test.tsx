@@ -52,6 +52,12 @@ describe("AnchorTable", () => {
     expect(nameCells()).toEqual(["Charliec", "Bravob", "Alphaa"]);
   });
 
+  it("applies a visible focus style to sortable header buttons", () => {
+    render(<AnchorTable anchors={anchors} />);
+    const sortButton = screen.getByLabelText("Sort by Anchor");
+    expect(sortButton).toHaveClass("focus-visible:border", "focus-visible:border-zinc-600");
+  });
+
   it("exposes the current sort direction via aria-sort", () => {
     render(<AnchorTable anchors={anchors} />);
     const header = screen.getByLabelText("Sort by Anchor").closest("th");

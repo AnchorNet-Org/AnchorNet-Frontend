@@ -24,7 +24,20 @@ function shareBefore(pools: Pool[], index: number, total: number): number {
 export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
   const total = pools.reduce((sum, p) => sum + p.total, 0);
 
-  if (pools.length === 0 || total <= 0) return null;
+  // Empty state: no pools or zero total liquidity. Render a visible
+  // placeholder instead of a zero-width (NaN) bar so the UI never shows
+  // a broken/distorted segment at zero liquidity.
+  if (pools.length === 0 || total <= 0) {
+    return (
+      <div
+        role="img"
+        aria-label="No pool liquidity yet"
+        className="flex h-3 w-full items-center justify-center rounded-full bg-zinc-800 text-[10px] text-zinc-500"
+      >
+        No liquidity
+      </div>
+    );
+  }
 
   const segments = pools.map((pool, i) => ({
     pool,

@@ -31,11 +31,12 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Configuration
 
 The dashboard talks to the AnchorNet API. Copy `.env.example` to `.env.local`
-and point it at your backend:
+and point it at your backend and define your frontend base URL:
 
 ```bash
 cp .env.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:3001
+# NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 ## Pages
@@ -123,6 +124,19 @@ accessibility — the pool distribution bar, and small presentational pieces
 like `Spinner`/`StatCard`/`EmptyState`/`RouteError`) is covered with
 [React Testing Library](https://testing-library.com/react) under a jsdom
 environment. Lint and build are separate CI steps.
+
+### Running Tests
+
+- **Run all tests:** `npm test`
+- **Run a single test file:** `npm test -- src/components/AnchorForm.test.tsx`
+- **Run in watch mode:** `npm test -- --watch` (re-runs tests on file changes)
+- **Run in watch mode for a single file:** `npm test -- src/components/AnchorForm.test.tsx --watch`
+
+### Coverage
+
+- **Generate coverage report:** `npm test -- --coverage`
+
+**Note:** No coverage threshold is currently enforced in CI or package.json. The project follows a guideline of maintaining ~95% test coverage across the codebase.
 
 ## Scripts
 

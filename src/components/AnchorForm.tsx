@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState, useEffect } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
@@ -32,30 +32,57 @@ function validate(id: string): FormErrors {
 export function AnchorForm({
   onSubmit,
   pending,
+  serverError,
 }: {
-  onSubmit: (input: { id: string; name?: string }) => void;
+  onSubmit: (input: { id: string; name?: string }) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
+  serverError?: string;
 }) {
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
-  function submit(event: FormEvent) {
+  useEffect(() => {
+    if (serverError) {
+      // Mirrors an externally supplied server validation error into the form.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setErrors((prev) => ({ ...prev, id: serverError }));
+    }
+  }, [serverError]);
+
+  const idRef = useRef<HTMLInputElement>(null);
+
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const nextErrors = validate(id);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSubmit({ id: id.trim(), name: name.trim() || undefined });
+    const result = await onSubmit({ id: id.trim(), name: name.trim() || undefined });
+    if (result === false) return;
+
     setId("");
     setName("");
     setErrors({});
+  }
+
+  /**
+   * Resets all field values, touched state, and errors back to the initial
+   * state without triggering any network request. Focus is returned to the
+   * first field so keyboard users can immediately start over.
+   */
+  function reset() {
+    setId("");
+    setName("");
+    setErrors({});
+    idRef.current?.focus();
   }
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-3 sm:flex-row">
       <div className="flex-1">
         <input
+          ref={idRef}
           value={id}
           onChange={(e) => {
             setId(e.target.value);
@@ -83,6 +110,13 @@ export function AnchorForm({
         className="h-fit shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
       >
         Register
+      </button>
+      <button
+        type="button"
+        onClick={reset}
+        className="h-fit shrink-0 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+      >
+        Reset
       </button>
     </form>
   );

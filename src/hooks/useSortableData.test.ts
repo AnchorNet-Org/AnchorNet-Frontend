@@ -68,6 +68,36 @@ describe("useSortableData", () => {
     act(() => result.current.requestSort("amount"));
     expect(rows).toEqual(original);
   });
+  it("clearSort resets to unsorted from ascending", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    act(() => result.current.requestSort("amount"));
+    expect(result.current.sort).toEqual({ key: "amount", direction: "asc" });
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
+  it("clearSort resets to unsorted from descending", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    act(() => result.current.requestSort("amount"));
+    act(() => result.current.requestSort("amount"));
+    expect(result.current.sort).toEqual({ key: "amount", direction: "desc" });
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
+  it("clearSort is a no-op when already unsorted", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    expect(result.current.sort).toBeNull();
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
   it('persists sort across items replacement', () => {
     const { result, rerender } = renderHook(
       ({ data }) => useSortableData(data, getValue),
