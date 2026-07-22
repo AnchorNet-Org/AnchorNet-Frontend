@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pool } from "@/lib/types";
 import { formatAmount } from "@/lib/format";
 
@@ -22,6 +23,7 @@ function shareBefore(pools: Pool[], index: number, total: number): number {
  * liquidity, with a colour-keyed legend. No charting library required.
  */
 export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
+  const [highlightedAsset, setHighlightedAsset] = useState<string | null>(null);
   const total = pools.reduce((sum, p) => sum + p.total, 0);
 
   // Empty state: no pools or zero total liquidity. Render a visible
@@ -55,23 +57,49 @@ export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
         role="img"
         aria-label="Pool liquidity distribution by asset"
       >
-        {segments.map(({ pool, pct, x, color }) => (
-          <rect key={pool.asset} x={x} y={0} width={pct} height={8} fill={color}>
-            <title>
-              {`${pool.asset}: ${formatAmount(pool.total)} (${pct.toFixed(1)}%)`}
-            </title>
-          </rect>
-        ))}
+        {segments.map(({ pool, pct, x, color }) => {
+          const isHighlighted = highlightedAsset === pool.asset;
+          return (
+            <rect
+              key={pool.asset}
+              x={x}
+              y={0}
+              width={pct}
+              height={8}
+              fill={color}
+              data-highlighted={isHighlighted ? "true" : "false"}
+              style={{
+                opacity: highlightedAsset === null || isHighlighted ? 1 : 0.4,
+                transition: "opacity 150ms ease-in-out",
+              }}
+            >
+              <title>
+                {`${pool.asset}: ${formatAmount(pool.total)} (${pct.toFixed(1)}%)`}
+              </title>
+            </rect>
+          );
+        })}
       </svg>
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
         {segments.map(({ pool, pct, color }) => (
-          <li key={pool.asset} className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: color }}
-            />
-            {pool.asset} · {pct.toFixed(1)}%
+          <li key={pool.asset}>
+            <button
+              type="button"
+              onMouseEnter={() => setHighlightedAsset(pool.asset)}
+              onMouseLeave={() => setHighlightedAsset(null)}
+              onFocus={() => setHighlightedAsset(pool.asset)}
+              onBlur={() => setHighlightedAsset(null)}
+              className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 focus:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-500 rounded px-1 -mx-1 transition-colors text-left font-normal cursor-pointer"
+            >
+              <span
+                aria-hidden
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+              <span>
+                {pool.asset} · {pct.toFixed(1)}%
+              </span>
+            </button>
           </li>
         ))}
       </ul>
