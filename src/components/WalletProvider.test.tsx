@@ -116,7 +116,7 @@ describe("WalletProvider", () => {
       new StorageEvent("storage", {
         key: "anchornet:wallet",
         newValue: JSON.stringify({ address }),
-        storageArea: localStorage,
+
       }),
     );
 
@@ -147,7 +147,7 @@ describe("WalletProvider", () => {
       new StorageEvent("storage", {
         key: "anchornet:wallet",
         newValue: null,
-        storageArea: localStorage,
+
       }),
     );
 
@@ -176,7 +176,7 @@ describe("WalletProvider", () => {
       new StorageEvent("storage", {
         key: "some-other-key",
         newValue: "irrelevant",
-        storageArea: localStorage,
+
       }),
     );
 

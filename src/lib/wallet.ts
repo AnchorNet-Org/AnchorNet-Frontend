@@ -21,13 +21,13 @@ const STELLAR_ADDRESS_PATTERN = /^G[A-Z0-9]{55}$/;
 
 /** Persists the connected wallet account so it survives a page refresh. */
 export function saveAccount(account: WalletAccount): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !window.localStorage) return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
 }
 
 /** Reads a previously persisted wallet account, if any and well-formed. */
 export function loadAccount(): WalletAccount | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || !window.localStorage) return null;
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
@@ -42,7 +42,7 @@ export function loadAccount(): WalletAccount | null {
 
 /** Clears any persisted wallet account and its session seed. */
 export function clearAccount(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !window.localStorage) return;
   window.localStorage.removeItem(STORAGE_KEY);
   window.localStorage.removeItem(SEED_STORAGE_KEY);
 }
