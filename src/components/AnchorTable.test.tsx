@@ -79,4 +79,67 @@ describe("AnchorTable", () => {
     );
     expect(screen.getAllByText("Deactivate")).toHaveLength(1);
   });
+
+  describe("initial aria-sort accessibility", () => {
+    it("announces all column headers as aria-sort=none on initial render", () => {
+      render(<AnchorTable anchors={anchors} />);
+
+      const nameHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const registeredHeader = screen
+        .getByLabelText("Sort by Registered")
+        .closest("th");
+      const statusHeader = screen.getByLabelText("Sort by Status").closest("th");
+
+      expect(nameHeader).toHaveAttribute("aria-sort", "none");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "none");
+      expect(statusHeader).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("updates aria-sort to ascending on first column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      expect(header).toHaveAttribute("aria-sort", "none");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("updates aria-sort to descending on second column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("resets aria-sort to none on third column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("switches aria-sort between columns when clicking different headers", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const nameHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const registeredHeader = screen
+        .getByLabelText("Sort by Registered")
+        .closest("th");
+
+      // Click Anchor (first sort)
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(nameHeader).toHaveAttribute("aria-sort", "ascending");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "none");
+
+      // Click Registered (switches to that column, ascending)
+      fireEvent.click(screen.getByLabelText("Sort by Registered"));
+      expect(nameHeader).toHaveAttribute("aria-sort", "none");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "ascending");
+    });
+  });
 });
