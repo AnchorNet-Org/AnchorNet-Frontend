@@ -7,7 +7,7 @@ import { QuoteForm } from "@/components/QuoteForm";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
 export const metadata: Metadata = {
-  title: "Dashboard â€“ AnchorNet",
+  title: "Dashboard – AnchorNet",
   description: "Live liquidity pools and routing quotes for AnchorNet anchors.",
 };
 

@@ -11,6 +11,19 @@ const BAR_COLORS = [
   "#94a3b8", // slate-400
 ];
 
+function getColor(index: number, asset: string): string {
+  if (index < BAR_COLORS.length) {
+    return BAR_COLORS[index];
+  }
+  // Deterministic hue rotation for additional assets so no collision.
+  let hash = 0;
+  for (let i = 0; i < asset.length; i++) {
+    hash = asset.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 60%)`;
+}
+
 /** Sums the `total` of every pool before `index`, as a percentage of `total`. */
 function shareBefore(pools: Pool[], index: number, total: number): number {
   const before = pools.slice(0, index).reduce((sum, p) => sum + p.total, 0);
@@ -43,7 +56,7 @@ export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
     pool,
     pct: (pool.total / total) * 100,
     x: shareBefore(pools, i, total),
-    color: BAR_COLORS[i % BAR_COLORS.length],
+    color: getColor(i, pool.asset),
   }));
 
   return (
@@ -56,7 +69,14 @@ export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
         aria-label="Pool liquidity distribution by asset"
       >
         {segments.map(({ pool, pct, x, color }) => (
-          <rect key={pool.asset} x={x} y={0} width={pct} height={8} fill={color}>
+          <rect
+            key={pool.asset}
+            x={x}
+            y={0}
+            width={pct}
+            height={8}
+            fill={color}
+          >
             <title>
               {`${pool.asset}: ${formatAmount(pool.total)} (${pct.toFixed(1)}%)`}
             </title>

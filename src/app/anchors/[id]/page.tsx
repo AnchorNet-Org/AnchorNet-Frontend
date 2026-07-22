@@ -37,7 +37,7 @@ export default async function AnchorDetailPage({
           items={[
             { label: "Dashboard", href: "/dashboard" },
             { label: "Anchors", href: "/anchors" },
-            { label: id },
+            { label: decodedId },
           ]}
         />
         <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">

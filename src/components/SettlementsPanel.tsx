@@ -50,7 +50,6 @@ export function SettlementsPanel() {
   // Empty on initial load so nothing is announced until the user paginates.
   const [loadMoreAnnouncement, setLoadMoreAnnouncement] = useState("");
   const [pending, setPending] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
   const [pools, setPools] = useState<Pool[]>([]);
@@ -179,17 +178,16 @@ export function SettlementsPanel() {
     anchor: string;
     asset: string;
     amount: number;
-  }) {
+  }): Promise<boolean> {
     setPending(true);
-    setServerError(null);
     try {
       await openSettlement(input);
       notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
       reload();
+      return true;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Request failed";
-      notify("error", message);
-      setServerError(message);
+      notify("error", err instanceof Error ? err.message : "Request failed");
+      return false;
     } finally {
       setPending(false);
     }
@@ -233,7 +231,7 @@ export function SettlementsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Open settlement
         </h2>
-        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} serverError={serverError || undefined} />
+        <SettlementForm onSubmit={open} pending={pending} availableLiquidity={availableLiquidity} />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -243,10 +241,13 @@ export function SettlementsPanel() {
         ) : (
           <>
             {state.settlements.length > 0 ? (
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <div role="search" aria-label="Settlements export, page size, and search" className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                {/* Note: Matching frontend search semantics server-side isn't feasible in scope.
+                    We explicitly document that the export covers the full dataset. */}
                 <button
                   onClick={handleExport}
                   disabled={exporting}
+                  title={query ? "Export includes all settlements, ignoring the current search filter" : undefined}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
                 >
                   {exporting ? "Exporting…" : "Export CSV"}

@@ -289,8 +289,10 @@ describe("SettlementsPanel", () => {
         asset: "USDC",
         amount: 400,
       });
-      expect(screen.getAllByText("Insufficient liquidity").length).toBeGreaterThanOrEqual(2);
-      expect(screen.getByPlaceholderText("Amount")).toHaveAttribute("aria-invalid", "true");
+      // Failure surfaces via the toast notification; the form itself keeps
+      // the entered values instead of clearing them (see SettlementForm's
+      // own "does not clear amount field if submission fails" coverage).
+      expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
     });
   });
 
@@ -531,6 +533,26 @@ describe("SettlementsPanel", () => {
     expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
   });
 
+  it("exposes an accessible group for the toolbar controls", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const toolbar = screen.getByRole("search", {
+      name: "Settlements export, page size, and search",
+    });
+    expect(toolbar).toContainElement(
+      screen.getByRole("button", { name: "Export CSV" }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Rows per page"),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Search settlements"),
+    );
+  });
+
   it("exports settlements as CSV", async () => {
     const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
@@ -552,5 +574,32 @@ describe("SettlementsPanel", () => {
 
     // Check if the download link was created
     expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("indicates when the CSV export ignores the active search filter", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).toHaveAttribute(
+      "title",
+      "Export includes all settlements, ignoring the current search filter"
+    );
+  });
+
+  it("does not indicate ignored search filter when query is empty", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).not.toHaveAttribute("title");
   });
 });

@@ -51,6 +51,16 @@ async function parseError(res: Response): Promise<ApiRequestError> {
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 500;
 
+/**
+ * Uses equal jitter so retries retain exponential growth while callers that
+ * fail together do not retry in lockstep. Each delay is between one and two
+ * times the exponential base delay.
+ */
+export function retryDelayMs(attempt: number): number {
+  const baseDelay = INITIAL_BACKOFF_MS * 2 ** attempt;
+  return baseDelay + Math.random() * baseDelay;
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -69,30 +79,33 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+function isIdempotent(method?: string): boolean {
+  return !method || method === "GET" || method === "HEAD";
+}
+
 function isRetryable(method: string | undefined, status: number): boolean {
-  const idempotent = !method || method === "GET" || method === "HEAD";
-  return idempotent && status >= 500 && status < 600;
+  return isIdempotent(method) && status >= 500 && status < 600;
 }
 
 async function doFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const headers: Record<string, string> = { ...(init?.headers as object) };
-  if (init?.body) headers["Content-Type"] = "application/json";
+  const headers = new Headers(init?.headers);
+  if (init?.body) headers.set("Content-Type", "application/json");
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 
 /**
  * Performs a JSON request against the API and returns the parsed body.
  * Throws {@link ApiRequestError} on a non-2xx response.
- * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
+ * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiRequest<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  let lastError: ApiRequestError;
+  let lastError: unknown;
   const method = init?.method;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -100,7 +113,18 @@ export async function apiRequest<T>(
       throw new DOMException("signal is aborted", "AbortError");
     }
 
-    const res = await doFetch(path, init);
+    let res: Response;
+    try {
+      res = await doFetch(path, init);
+    } catch (err) {
+      if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      lastError = err;
+      await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+      continue;
+    }
+
     if (res.ok) return (await res.json()) as T;
 
     lastError = await parseError(res);
@@ -109,7 +133,7 @@ export async function apiRequest<T>(
       throw lastError;
     }
 
-    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+    await sleep(retryDelayMs(attempt), init?.signal ?? undefined);
   }
 
   throw lastError!;
@@ -118,13 +142,13 @@ export async function apiRequest<T>(
 /**
  * Performs a request against the API and returns the response as text (e.g. CSV).
  * Throws {@link ApiRequestError} on a non-2xx response.
- * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
+ * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiTextRequest(
   path: string,
   init?: RequestInit,
 ): Promise<string> {
-  let lastError: ApiRequestError;
+  let lastError: unknown;
   const method = init?.method;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -132,7 +156,18 @@ export async function apiTextRequest(
       throw new DOMException("signal is aborted", "AbortError");
     }
 
-    const res = await doFetch(path, init);
+    let res: Response;
+    try {
+      res = await doFetch(path, init);
+    } catch (err) {
+      if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      lastError = err;
+      await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+      continue;
+    }
+
     if (res.ok) return await res.text();
 
     lastError = await parseError(res);
@@ -141,7 +176,7 @@ export async function apiTextRequest(
       throw lastError;
     }
 
-    await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+    await sleep(retryDelayMs(attempt), init?.signal ?? undefined);
   }
 
   throw lastError!;

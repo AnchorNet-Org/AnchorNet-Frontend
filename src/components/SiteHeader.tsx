@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -69,8 +70,25 @@ function ThemeToggle() {
   );
 }
 
+const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/anchors", label: "Anchors" },
+  { href: "/settlements", label: "Settlements" },
+];
+
+/** Determines if a navigation link matches the current pathname. */
+function isLinkActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 /** Top navigation shared across pages. */
 export function SiteHeader() {
+  const pathname = usePathname() ?? "";
+
   return (
     <header className="border-b border-zinc-900">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
@@ -78,18 +96,23 @@ export function SiteHeader() {
           AnchorNet
         </Link>
         <div className="flex items-center gap-4 text-sm text-zinc-400">
-          <Link href="/" className="hover:text-zinc-100">
-            Home
-          </Link>
-          <Link href="/dashboard" className="hover:text-zinc-100">
-            Dashboard
-          </Link>
-          <Link href="/anchors" className="hover:text-zinc-100">
-            Anchors
-          </Link>
-          <Link href="/settlements" className="hover:text-zinc-100">
-            Settlements
-          </Link>
+          {NAV_LINKS.map((link) => {
+            const isActive = isLinkActive(pathname, link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive ? "page" : undefined}
+                className={
+                  isActive
+                    ? "text-zinc-100 font-medium"
+                    : "hover:text-zinc-100 transition-colors"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <ThemeToggle />
           <ConnectButton />
         </div>
