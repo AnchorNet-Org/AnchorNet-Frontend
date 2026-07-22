@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -89,6 +89,14 @@ export function AnchorsPanel() {
   // Initial values are hydrated from the URL on first render.
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
+
+  // When the URL carries an invalid status value, correct it to the effective
+  // fallback ("all") so the address bar always reflects what is displayed.
+  useEffect(() => {
+    if (!isStatusFilter(rawStatus)) {
+      setStatus("all");
+    }
+  }, [rawStatus, setStatus]);
 
   const [query, setQuery] = useQueryState("q", "");
 
