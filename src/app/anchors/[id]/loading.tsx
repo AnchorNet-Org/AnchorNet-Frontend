@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { Card } from "@/components/Card";
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 
 export default function AnchorDetailLoading() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-6 py-12">
+    <PageShell>
         <div className="space-y-6">
           <Link
             href="/anchors"
@@ -38,7 +36,6 @@ export default function AnchorDetailLoading() {
             </div>
           </Card>
         </div>
-      </main>
-    </div>
+    </PageShell>
   );
 }

@@ -43,11 +43,18 @@ export function AnchorForm({
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
+    let cancelled = false;
     if (serverError) {
+      Promise.resolve().then(() => {
+        if (!cancelled) setErrors((prev) => ({ ...prev, id: serverError }));
+      });
       // Mirrors an externally supplied server validation error into the form.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrors((prev) => ({ ...prev, id: serverError }));
     }
+    return () => {
+      cancelled = true;
+    };
   }, [serverError]);
 
   const idRef = useRef<HTMLInputElement>(null);
