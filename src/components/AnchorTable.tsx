@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { useSortableData } from "@/hooks/useSortableData";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
 type SortKey = "name" | "registeredAt" | "active";
 
@@ -35,7 +36,16 @@ export function AnchorTable({
   }
 
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          name: "Anchor",
+          registeredAt: "Registered",
+          active: "Status",
+        }}
+      />
+      <table className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-zinc-800 text-zinc-400">
           <SortableHeader
@@ -101,6 +111,7 @@ export function AnchorTable({
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 

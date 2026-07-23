@@ -5,6 +5,7 @@ import { formatAmount, pluralize } from "@/lib/format";
 import { useSortableData } from "@/hooks/useSortableData";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
 type SortKey = "asset" | "total" | "anchors";
 
@@ -26,7 +27,16 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
   }
 
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          asset: "Asset",
+          total: "Total liquidity",
+          anchors: "Anchors",
+        }}
+      />
+      <table className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-zinc-800 text-zinc-400">
           <SortableHeader
@@ -75,6 +85,7 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
         </tr>
       </tfoot>
     </table>
+    </>
   );
 }
 

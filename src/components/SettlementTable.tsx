@@ -7,6 +7,7 @@ import { useSortableData } from "@/hooks/useSortableData";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
 type SortKey = "anchor" | "amount" | "status";
 
@@ -46,7 +47,16 @@ export function SettlementTable({
   );
 
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          anchor: "Anchor",
+          amount: "Amount",
+          status: "Status",
+        }}
+      />
+      <table className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-zinc-800 text-zinc-400">
           <th className="py-2 font-medium">#</th>
@@ -130,6 +140,7 @@ export function SettlementTable({
         </tr>
       </tfoot>
     </table>
+    </>
   );
 }
 

@@ -79,4 +79,25 @@ describe("AnchorTable", () => {
     );
     expect(screen.getAllByText("Deactivate")).toHaveLength(1);
   });
+
+  it("announces the new sort key and direction via a live region when clicked", () => {
+    const { container } = render(<AnchorTable anchors={anchors} />);
+    
+    // No announcement on initial render
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    // Click to sort by Anchor name
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorted by Anchor, ascending");
+
+    // Click again to cycle to descending
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorted by Anchor, descending");
+
+    // Click again to cycle to unsorted
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
 });
