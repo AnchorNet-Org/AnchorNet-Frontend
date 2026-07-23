@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QuoteForm } from "./QuoteForm";
-import { requestQuote } from "@/lib/api";
+import { ApiRequestError, requestQuote } from "@/lib/api";
 
-vi.mock("@/lib/api", () => ({
-  requestQuote: vi.fn(),
-  // fetchPools is not called when knownAssets prop is supplied
-  fetchPools: vi.fn().mockResolvedValue([]),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    requestQuote: vi.fn(),
+    // fetchPools is not called when knownAssets prop is supplied
+    fetchPools: vi.fn().mockResolvedValue([]),
+  };
+});
 
 describe("QuoteForm", () => {
   afterEach(() => {
@@ -99,6 +103,20 @@ describe("QuoteForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a calm retry message when quote requests are rate-limited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new ApiRequestError(429, "RATE_LIMITED", "too many requests"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+
+    expect(
+      await screen.findByText("You're quoting too quickly — try again in a moment."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("too many requests")).not.toBeInTheDocument();
+  });
+
   it("shows a generic message when the API rejects with a non-Error", async () => {
     vi.mocked(requestQuote).mockRejectedValue("boom");
 
@@ -155,5 +173,87 @@ describe("QuoteForm", () => {
       expect(screen.getByText(/495 MYASSET/)).toBeInTheDocument();
     });
     expect(requestQuote).toHaveBeenCalledWith({ asset: "MYASSET", amount: 500 });
+  });
+
+  it("clears a successful quote when the asset field is edited", async () => {
+    vi.mocked(requestQuote).mockResolvedValue({
+      asset: "USDC",
+      amount: 1000,
+      fee: 10,
+      deliverable: 990,
+      route: ["big", "mid"],
+    });
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/990 USDC/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("USDC"), {
+      target: { value: "EURC" },
+    });
+
+    expect(screen.queryByText(/990 USDC/)).not.toBeInTheDocument();
+    expect(screen.queryByText("big → mid")).not.toBeInTheDocument();
+  });
+
+  it("clears a successful quote when the amount field is edited", async () => {
+    vi.mocked(requestQuote).mockResolvedValue({
+      asset: "USDC",
+      amount: 1000,
+      fee: 10,
+      deliverable: 990,
+      route: ["big", "mid"],
+    });
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/990 USDC/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("1000"), {
+      target: { value: "500" },
+    });
+
+    expect(screen.queryByText(/990 USDC/)).not.toBeInTheDocument();
+    expect(screen.queryByText("big → mid")).not.toBeInTheDocument();
+  });
+
+  it("clears an error message when the asset field is edited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new Error("insufficient liquidity"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient liquidity/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("USDC"), {
+      target: { value: "EURC" },
+    });
+
+    expect(screen.queryByText(/insufficient liquidity/i)).not.toBeInTheDocument();
+  });
+
+  it("clears an error message when the amount field is edited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new Error("insufficient liquidity"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient liquidity/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("1000"), {
+      target: { value: "500" },
+    });
+
+    expect(screen.queryByText(/insufficient liquidity/i)).not.toBeInTheDocument();
   });
 });

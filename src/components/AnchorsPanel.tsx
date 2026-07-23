@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -12,7 +12,6 @@ import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
@@ -54,47 +53,33 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
+  // Ids of anchors with a deactivation request currently in flight. This is
+  // mirrored into a ref so the short-circuit guard below always reads the
+  // latest value, independent of which render produced the deregister closure.
+  const [deregisteringIds, setDeregisteringIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const deregisteringRef = useRef<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
-
-  // One ref per filter button for imperative focus management (roving tabindex).
-  const filterRefs = useRef<Array<HTMLButtonElement | null>>(
-    Array(FILTERS.length).fill(null),
-  );
-
-  /** Arrow-key / Home / End roving focus across the filter button group. */
-  function onFilterKeyDown(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) {
-    const last = FILTERS.length - 1;
-    let next: number | null = null;
-
-    if (event.key === "ArrowRight") next = index === last ? 0 : index + 1;
-    else if (event.key === "ArrowLeft") next = index === 0 ? last : index - 1;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = last;
-
-    if (next !== null) {
-      event.preventDefault();
-      filterRefs.current[next]?.focus();
-    }
-  }
 
   // Sync status filter and search query to the URL querystring.
   // Initial values are hydrated from the URL on first render.
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
 
-  const [query, setQuery] = useQueryState("q", "");
+  // When the URL carries an invalid status value, correct it to the effective
+  // fallback ("all") so the address bar always reflects what is displayed.
+  useEffect(() => {
+    if (!isStatusFilter(rawStatus)) {
+      setStatus("all");
+    }
+  }, [rawStatus, setStatus]);
 
-  // Debounce only the value that drives filtering so large anchor lists aren't
-  // re-filtered on every keystroke; the input stays bound to `query` above.
-  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  const [query, setQuery] = useQueryState("q", "");
 
   const filteredAnchors =
     state.status === "ready"
@@ -122,12 +107,26 @@ export function AnchorsPanel() {
   }
 
   async function deregister(id: string) {
+    // Guard against a duplicate deregisterAnchor request for an anchor that is
+    // already being deactivated (e.g. a rapid second click on the same row
+    // while the first request is still in flight). register()'s separate
+    // `pending` guard is intentionally untouched.
+    if (deregisteringRef.current.has(id)) return;
+    deregisteringRef.current.add(id);
+    setDeregisteringIds((prev) => new Set(prev).add(id));
     try {
       await deregisterAnchor(id);
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Deactivation failed");
+    } finally {
+      deregisteringRef.current.delete(id);
+      setDeregisteringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -151,9 +150,7 @@ export function AnchorsPanel() {
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
-                    ref={(el) => { filterRefs.current[i] = el; }}
                     onClick={() => setStatus(f.value)}
-                    onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
                     tabIndex={filter === f.value ? 0 : -1}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -188,6 +185,7 @@ export function AnchorsPanel() {
               <AnchorTable
                 anchors={filteredAnchors}
                 onDeregister={setPendingDeregisterId}
+                deregisteringIds={deregisteringIds}
               />
             )}
           </>

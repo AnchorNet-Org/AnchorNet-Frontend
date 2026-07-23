@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { fetchAnchor, deregisterAnchor } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
 import { Anchor } from "@/lib/types";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
@@ -56,9 +57,17 @@ export function AnchorDetail({
       <Card>
         {state.status === "loading" ? (
           <Spinner label="Loading anchor…" />
-        ) : state.status === "error" ? (
-          <p className="text-sm text-red-400">{state.message}</p>
-        ) : (
+          ) : state.status === "error" ? (
+            <> {
+              state.error instanceof ApiRequestError && state.error.status === 404 ? (
+                <p className="text-sm text-red-400">
+                  Anchor not found. <Link href="/anchors" className="underline">Back to anchors</Link>
+                </p>
+              ) : (
+                <p className="text-sm text-red-400">{state.message}</p>
+              )
+            } </>
+          ) : (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-white">

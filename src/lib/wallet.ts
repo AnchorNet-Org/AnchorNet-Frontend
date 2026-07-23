@@ -22,13 +22,22 @@ const STELLAR_ADDRESS_PATTERN = /^G[A-Z0-9]{55}$/;
 /** Persists the connected wallet account so it survives a page refresh. */
 export function saveAccount(account: WalletAccount): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+  } catch {
+    // Silently fail if storage is unavailable
+  }
 }
 
 /** Reads a previously persisted wallet account, if any and well-formed. */
 export function loadAccount(): WalletAccount | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<WalletAccount>;
@@ -43,14 +52,46 @@ export function loadAccount(): WalletAccount | null {
 /** Clears any persisted wallet account and its session seed. */
 export function clearAccount(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.localStorage.removeItem(SEED_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(SEED_STORAGE_KEY);
+  } catch {
+    // Silently fail if storage is unavailable
+  }
 }
 
 /** Shortens an address for display, e.g. "GABC…WXYZ". */
 export function truncateAddress(address: string, visible = 4): string {
   if (address.length <= visible * 2 + 1) return address;
   return `${address.slice(0, visible)}…${address.slice(-visible)}`;
+}
+
+/**
+ * Generates a 20-character uppercase alphanumeric random seed.
+ *
+ * Prefers `crypto.randomUUID()` when available, but falls back to a
+ * `Math.random`-based generator because `randomUUID` is only exposed in
+ * secure contexts in some browsers and `crypto` itself may be absent in
+ * older/embedded environments. This mirrors the defensive-guard pattern
+ * used by the other environment-dependent helpers in this file (and by
+ * `window.matchMedia?.()` in lib/theme.ts): degrade gracefully instead of
+ * throwing an uncaught TypeError.
+ */
+function generateRandomSeed(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID().replace(/-/g, "").toUpperCase().slice(0, 20);
+  }
+  // Fallback: build a 20-character [A-Z0-9] string from Math.random.
+  // Not cryptographically strong, but sufficient for a mock wallet seed.
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let seed = "";
+  for (let i = 0; i < 20; i += 1) {
+    seed += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return seed;
 }
 
 /**
@@ -61,13 +102,21 @@ export function truncateAddress(address: string, visible = 4): string {
  */
 function getOrGenerateSessionSeed(): string {
   if (typeof window === "undefined") return "ANCHORNET";
-  
-  const stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+  } catch {
+    // Ignore error
+  }
   if (stored) return stored;
-  
-  // Generate a random seed from UUID
-  const seed = crypto.randomUUID().replace(/-/g, "").toUpperCase().slice(0, 20);
-  window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+
+  const seed = generateRandomSeed();
+  try {
+    window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+  } catch {
+    // Ignore error
+  }
   return seed;
 }
 

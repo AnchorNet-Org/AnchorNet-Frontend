@@ -20,4 +20,17 @@ describe("StatCard", () => {
     render(<StatCard label="Pools" value="3" />);
     expect(screen.queryByText("across all assets")).not.toBeInTheDocument();
   });
+
+  it("shows a skeleton and keeps the label visible when loading", () => {
+  render(<StatCard label="Pools" value="42" loading />);
+  expect(screen.getByText("Pools")).toBeInTheDocument();
+  expect(screen.queryByText("42")).not.toBeInTheDocument();
+});
+
+it("does not show a hint skeleton bleeding into loaded content", () => {
+  const { container } = render(<StatCard label="Pools" value="42" hint="stable" loading />);
+  expect(screen.queryByText("stable")).not.toBeInTheDocument();
+  expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
+});
+
 });

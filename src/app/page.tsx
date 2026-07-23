@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl px-6 py-24">
+    <PageShell maxWidth="max-w-3xl" py="py-24">
         <h1 className="text-4xl font-bold tracking-tight text-white">
           AnchorNet
         </h1>
@@ -13,7 +11,7 @@ export default function Home() {
           Liquidity Network
         </p>
         <p className="mt-8 text-zinc-300 leading-relaxed">
-          A liquidity coordination network for Stellar anchors â€” efficient
+          A liquidity coordination network for Stellar anchors — efficient
           cross-anchor settlement and liquidity sharing. This app will integrate
           with the AnchorNet API and Stellar wallet for payments and routing.
         </p>
@@ -51,8 +49,7 @@ export default function Home() {
             body="Open, execute and cancel cross-anchor settlements."
           />
         </div>
-      </main>
-    </div>
+    </PageShell>
   );
 }
 

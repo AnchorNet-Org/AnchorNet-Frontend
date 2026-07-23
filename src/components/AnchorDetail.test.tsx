@@ -9,6 +9,7 @@ import {
 import { AnchorDetail } from "./AnchorDetail";
 import { ToastProvider } from "./ToastProvider";
 import { fetchAnchor, deregisterAnchor } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
 
 vi.mock("@/lib/anchorsApi", () => ({
   fetchAnchor: vi.fn(),
@@ -61,13 +62,18 @@ describe("AnchorDetail", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows an error message when the anchor fails to load", async () => {
-    vi.mocked(fetchAnchor).mockRejectedValue(new Error("not found"));
+  it("shows a not‑found message when the anchor returns 404", async () => {
+    vi.mocked(fetchAnchor).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "Not found"));
 
     renderDetail();
 
-    expect(await screen.findByText(/not found/i)).toBeInTheDocument();
+    // Expect the distinct not‑found text
+    expect(await screen.findByText(/anchor not found/i)).toBeInTheDocument();
+    const backLink = screen.getByRole("link", { name: /back to anchors/i });
+    expect(backLink).toBeInTheDocument();
+    expect(backLink).toHaveAttribute("href", "/anchors");
   });
+
 
   it("hides the deactivate action for an already-inactive anchor", async () => {
     vi.mocked(fetchAnchor).mockResolvedValue({
