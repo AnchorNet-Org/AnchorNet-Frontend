@@ -174,4 +174,86 @@ describe("QuoteForm", () => {
     });
     expect(requestQuote).toHaveBeenCalledWith({ asset: "MYASSET", amount: 500 });
   });
+
+  it("clears a successful quote when the asset field is edited", async () => {
+    vi.mocked(requestQuote).mockResolvedValue({
+      asset: "USDC",
+      amount: 1000,
+      fee: 10,
+      deliverable: 990,
+      route: ["big", "mid"],
+    });
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/990 USDC/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("USDC"), {
+      target: { value: "EURC" },
+    });
+
+    expect(screen.queryByText(/990 USDC/)).not.toBeInTheDocument();
+    expect(screen.queryByText("big → mid")).not.toBeInTheDocument();
+  });
+
+  it("clears a successful quote when the amount field is edited", async () => {
+    vi.mocked(requestQuote).mockResolvedValue({
+      asset: "USDC",
+      amount: 1000,
+      fee: 10,
+      deliverable: 990,
+      route: ["big", "mid"],
+    });
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/990 USDC/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("1000"), {
+      target: { value: "500" },
+    });
+
+    expect(screen.queryByText(/990 USDC/)).not.toBeInTheDocument();
+    expect(screen.queryByText("big → mid")).not.toBeInTheDocument();
+  });
+
+  it("clears an error message when the asset field is edited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new Error("insufficient liquidity"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient liquidity/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("USDC"), {
+      target: { value: "EURC" },
+    });
+
+    expect(screen.queryByText(/insufficient liquidity/i)).not.toBeInTheDocument();
+  });
+
+  it("clears an error message when the amount field is edited", async () => {
+    vi.mocked(requestQuote).mockRejectedValue(
+      new Error("insufficient liquidity"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient liquidity/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("1000"), {
+      target: { value: "500" },
+    });
+
+    expect(screen.queryByText(/insufficient liquidity/i)).not.toBeInTheDocument();
+  });
 });

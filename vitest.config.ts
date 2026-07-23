@@ -9,12 +9,11 @@ export default defineConfig({
     css: false,
     coverage: {
       provider: "v8",
-      // Provider and hook coverage is kept to the repository's 95% standard.
+      // Enforce the repository's 95% standard across production source files.
       include: [
-        "src/components/ThemeProvider.tsx",
-        "src/hooks/useTheme.ts",
-        "src/components/ToastProvider.tsx",
+        "src/**/*.{ts,tsx}",
       ],
+      exclude: ["src/**/*.test.{ts,tsx}"],
       thresholds: {
         statements: 95,
         branches: 95,
