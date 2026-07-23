@@ -1,13 +1,10 @@
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 import { Spinner } from "@/components/Spinner";
 
 export default function SettlementDetailLoading() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-6 py-12">
+    <PageShell>
         <Spinner label="Loading settlement…" />
-      </main>
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -58,6 +58,13 @@ export function AnchorsPanel() {
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
+  // Ids of anchors with a deactivation request currently in flight. This is
+  // mirrored into a ref so the short-circuit guard below always reads the
+  // latest value, independent of which render produced the deregister closure.
+  const [deregisteringIds, setDeregisteringIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const deregisteringRef = useRef<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
@@ -89,6 +96,14 @@ export function AnchorsPanel() {
   // Initial values are hydrated from the URL on first render.
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
+
+  // When the URL carries an invalid status value, correct it to the effective
+  // fallback ("all") so the address bar always reflects what is displayed.
+  useEffect(() => {
+    if (!isStatusFilter(rawStatus)) {
+      setStatus("all");
+    }
+  }, [rawStatus, setStatus]);
 
   const [query, setQuery] = useQueryState("q", "");
 
@@ -122,12 +137,26 @@ export function AnchorsPanel() {
   }
 
   async function deregister(id: string) {
+    // Guard against a duplicate deregisterAnchor request for an anchor that is
+    // already being deactivated (e.g. a rapid second click on the same row
+    // while the first request is still in flight). register()'s separate
+    // `pending` guard is intentionally untouched.
+    if (deregisteringRef.current.has(id)) return;
+    deregisteringRef.current.add(id);
+    setDeregisteringIds((prev) => new Set(prev).add(id));
     try {
       await deregisterAnchor(id);
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Deactivation failed");
+    } finally {
+      deregisteringRef.current.delete(id);
+      setDeregisteringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -188,6 +217,7 @@ export function AnchorsPanel() {
               <AnchorTable
                 anchors={filteredAnchors}
                 onDeregister={setPendingDeregisterId}
+                deregisteringIds={deregisteringIds}
               />
             )}
           </>

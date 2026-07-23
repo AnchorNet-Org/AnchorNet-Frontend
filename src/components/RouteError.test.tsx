@@ -57,6 +57,19 @@ describe("RouteError", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the error digest when present", () => {
+    const error = new Error("Server error occurred") as Error & { digest: string };
+    error.digest = "NEXT_JS_DIGEST_123";
+    render(<RouteError error={error} reset={() => {}} />);
+    expect(screen.getByText("Reference: NEXT_JS_DIGEST_123")).toBeInTheDocument();
+  });
+
+  it("does not render reference line when error digest is absent", () => {
+    const error = new Error("Client error occurred");
+    render(<RouteError error={error} reset={() => {}} />);
+    expect(screen.queryByText(/Reference:/)).not.toBeInTheDocument();
+  });
+
   it("calls reset when 'Try again' is clicked", () => {
     const reset = vi.fn();
     render(<RouteError error={new Error("boom")} reset={reset} />);
@@ -91,4 +104,22 @@ describe("RouteError", () => {
       expect(reloadMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("support link", () => {
+    it("renders a link to the GitHub issues page", () => {
+      render(<RouteError error={new Error("boom")} reset={() => {}} />);
+      const link = screen.getByRole("link", { name: /still having trouble\? report an issue/i });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute("href", "https://github.com/AnchorNet-Org/issues");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("renders the link regardless of the variant/title provided", () => {
+      render(<RouteError error={new Error("boom")} reset={() => {}} title="Custom Error Title" />);
+      const link = screen.getByRole("link", { name: /still having trouble\? report an issue/i });
+      expect(link).toBeInTheDocument();
+    });
+  });
 });
+
