@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SettlementStatus } from "@/lib/types";
+import { SettlementStatus, isSettlementStatus } from "@/lib/types";
 import { formatStatus } from "@/lib/format";
 
 const STYLES: Record<SettlementStatus, string> = {
@@ -18,21 +18,27 @@ export function StatusBadge({ status }: { status: SettlementStatus }) {
   const previousStatus = useRef(status);
   const [announcement, setAnnouncement] = useState("");
 
+  // Determine if status is valid at runtime
+  const isValid = isSettlementStatus(status);
+
+  // Use fallback values when status is invalid
+  const safeStatus = isValid ? status : "unknown" as SettlementStatus;
+
   useEffect(() => {
-    if (status !== previousStatus.current) {
-      previousStatus.current = status;
-      // This state deliberately records prop transitions rather than mirroring render state.
+    if (safeStatus !== previousStatus.current) {
+      previousStatus.current = safeStatus;
+      // Record transitions for screen reader announcements
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAnnouncement(formatStatus(status));
+      setAnnouncement(formatStatus(safeStatus));
     }
-  }, [status]);
+  }, [safeStatus]);
 
   return (
     <>
       <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[status] ?? FALLBACK_STYLE}`}
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[safeStatus] ?? FALLBACK_STYLE}`}
       >
-        {formatStatus(status)}
+        {formatStatus(safeStatus)}
       </span>
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}

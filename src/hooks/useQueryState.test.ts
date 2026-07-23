@@ -125,4 +125,27 @@ describe("useQueryState", () => {
       scroll: false,
     });
   });
+
+  it("updates returned value when searchParams changes externally without calling setter", () => {
+    mockSearchParamsString = "q=initial";
+    const { result, rerender } = renderHook(() => useQueryState("q", ""));
+    expect(result.current[0]).toBe("initial");
+
+    // Simulate external URL change (e.g. Back/Forward navigation)
+    mockSearchParamsString = "q=updated";
+    rerender();
+
+    expect(result.current[0]).toBe("updated");
+  });
+
+  it("resyncs to fallback value when searchParams param is removed externally", () => {
+    mockSearchParamsString = "q=stellar";
+    const { result, rerender } = renderHook(() => useQueryState("q", "default"));
+    expect(result.current[0]).toBe("stellar");
+
+    mockSearchParamsString = "";
+    rerender();
+
+    expect(result.current[0]).toBe("default");
+  });
 });

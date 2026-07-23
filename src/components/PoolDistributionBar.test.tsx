@@ -17,9 +17,7 @@ describe("PoolDistributionBar", () => {
 
   it("renders an empty state when total liquidity is zero", () => {
     render(
-      <PoolDistributionBar
-        pools={[{ asset: "USDC", total: 0, anchors: 0 }]}
-      />,
+      <PoolDistributionBar pools={[{ asset: "USDC", total: 0, anchors: 0 }]} />,
     );
     expect(screen.getByText("No liquidity")).toBeInTheDocument();
   });
@@ -87,5 +85,18 @@ describe("PoolDistributionBar", () => {
     fireEvent.mouseLeave(buttons[1]);
     expect(rects[0]).toHaveAttribute("data-highlighted", "false");
     expect(rects[1]).toHaveAttribute("data-highlighted", "false");
+  });
+
+  it("assigns distinct colors when there are more than 6 pools", () => {
+    const manyPools: Pool[] = Array.from({ length: 8 }, (_, i) => ({
+      asset: `Asset${i}`,
+      total: 100,
+      anchors: 1,
+    }));
+    const { container } = render(<PoolDistributionBar pools={manyPools} />);
+    const rects = container.querySelectorAll("rect");
+    const fills = Array.from(rects).map((r) => r.getAttribute("fill"));
+    const uniqueFills = new Set(fills);
+    expect(uniqueFills.size).toBe(fills.length);
   });
 });

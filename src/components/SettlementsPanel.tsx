@@ -66,8 +66,19 @@ export function SettlementsPanel() {
   );
   const pageSize = parsePageSize(rawPageSize);
 
+  // If the URL carried an invalid pageSize (e.g. an old bookmark or a
+  // hand-edited value), correct the querystring to reflect the effective page
+  // size actually being used, so the address bar no longer diverges from what
+  // is displayed and fetched. Writing the default value clears the param.
+  useEffect(() => {
+    if (String(pageSize) !== rawPageSize) {
+      setRawPageSize(String(pageSize));
+    }
+  }, [pageSize, rawPageSize, setRawPageSize]);
+
   const reload = useCallback(() => {
     setState({ status: "loading" });
+    setMoreError(null);
     setNonce((n) => n + 1);
   }, []);
 
@@ -150,16 +161,6 @@ export function SettlementsPanel() {
     }
   }
 
-  async function run(action: () => Promise<unknown>, successMessage: string) {
-    try {
-      await action();
-      notify("success", successMessage);
-      reload();
-    } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Request failed");
-    }
-  }
-
   async function runSettlementAction(
     action: () => Promise<Settlement>,
     successMessage: string,
@@ -188,13 +189,19 @@ export function SettlementsPanel() {
     anchor: string;
     asset: string;
     amount: number;
-  }) {
+  }): Promise<boolean> {
     setPending(true);
-    await run(
-      () => openSettlement(input),
-      `Opened a settlement for ${input.amount} ${input.asset}.`,
-    );
-    setPending(false);
+    try {
+      await openSettlement(input);
+      notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
+      reload();
+      return true;
+    } catch (err: unknown) {
+      notify("error", err instanceof Error ? err.message : "Request failed");
+      return false;
+    } finally {
+      setPending(false);
+    }
   }
 
   async function handleExport() {
@@ -224,6 +231,9 @@ export function SettlementsPanel() {
           matchesQuery([s.id, s.anchor, s.asset], query),
         )
       : [];
+
+  // Determine count to display in the footer
+  const displayCount = query.trim() ? visibleSettlements.length : state.pagination.total;
 
   return (
     <div className="space-y-6">
@@ -314,7 +324,7 @@ export function SettlementsPanel() {
               </div>
             ) : state.settlements.length > 0 ? (
               <p className="mt-4 text-center text-xs text-zinc-500">
-                Showing all {pluralize(state.pagination.total, "settlement")}
+                Showing all {pluralize(displayCount, "settlement")}
               </p>
             ) : null}
           </>

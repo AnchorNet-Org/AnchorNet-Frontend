@@ -79,17 +79,20 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+function isIdempotent(method?: string): boolean {
+  return !method || method === "GET" || method === "HEAD";
+}
+
 function isRetryable(method: string | undefined, status: number): boolean {
-  const idempotent = !method || method === "GET" || method === "HEAD";
-  return idempotent && status >= 500 && status < 600;
+  return isIdempotent(method) && status >= 500 && status < 600;
 }
 
 async function doFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const headers: Record<string, string> = { ...(init?.headers as object) };
-  if (init?.body) headers["Content-Type"] = "application/json";
+  const headers = new Headers(init?.headers);
+  if (init?.body) headers.set("Content-Type", "application/json");
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 
@@ -144,13 +147,13 @@ function composeSignals(
 /**
  * Performs a JSON request against the API and returns the parsed body.
  * Throws {@link ApiRequestError} on a non-2xx response.
- * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
+ * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiRequest<T>(
   path: string,
   init?: ApiRequestInit,
 ): Promise<T> {
-  let lastError: ApiRequestError;
+  let lastError: unknown;
   const method = init?.method;
   const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
@@ -163,19 +166,23 @@ export async function apiRequest<T>(
     let res: Response;
     try {
       res = await doFetch(path, { ...init, signal: combinedSignal });
-      if (res.ok) {
-        const body = (await res.json()) as T;
-        return body;
-      }
-      lastError = await parseError(res);
     } catch (err) {
+      cleanup();
       if (hasTimedOut()) {
         throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
       }
-      throw err;
-    } finally {
-      cleanup();
+      if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      lastError = err;
+      await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+      continue;
     }
+    cleanup();
+
+    if (res.ok) return (await res.json()) as T;
+
+    lastError = await parseError(res);
 
     if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
       throw lastError;
@@ -190,13 +197,13 @@ export async function apiRequest<T>(
 /**
  * Performs a request against the API and returns the response as text (e.g. CSV).
  * Throws {@link ApiRequestError} on a non-2xx response.
- * Retries up to {@link MAX_RETRIES} times on 5xx for idempotent requests.
+ * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiTextRequest(
   path: string,
   init?: ApiRequestInit,
 ): Promise<string> {
-  let lastError: ApiRequestError;
+  let lastError: unknown;
   const method = init?.method;
   const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
@@ -209,19 +216,23 @@ export async function apiTextRequest(
     let res: Response;
     try {
       res = await doFetch(path, { ...init, signal: combinedSignal });
-      if (res.ok) {
-        const text = await res.text();
-        return text;
-      }
-      lastError = await parseError(res);
     } catch (err) {
+      cleanup();
       if (hasTimedOut()) {
         throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
       }
-      throw err;
-    } finally {
-      cleanup();
+      if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
+        throw err;
+      }
+      lastError = err;
+      await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
+      continue;
     }
+    cleanup();
+
+    if (res.ok) return await res.text();
+
+    lastError = await parseError(res);
 
     if (!isRetryable(method, res.status) || attempt === MAX_RETRIES) {
       throw lastError;
