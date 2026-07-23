@@ -128,6 +128,27 @@ describe("SettlementTable sorting", () => {
     expect(header).toHaveAttribute("aria-sort", "descending");
   });
 
+  it("announces the new sort key and direction via a live region when clicked", () => {
+    const { container } = render(<SettlementTable settlements={settlements} />);
+
+    // No announcement on initial render
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    // Click to sort by Amount
+    fireEvent.click(screen.getByLabelText("Sort by Amount"));
+    expect(liveRegion).toHaveTextContent("Sorted by Amount, ascending");
+
+    // Click again to cycle to descending
+    fireEvent.click(screen.getByLabelText("Sort by Amount"));
+    expect(liveRegion).toHaveTextContent("Sorted by Amount, descending");
+
+    // Click again to cycle to unsorted
+    fireEvent.click(screen.getByLabelText("Sort by Amount"));
+    expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
+
   describe("initial aria-sort accessibility", () => {
     it("announces all column headers as aria-sort=none on initial render", () => {
       render(<SettlementTable settlements={settlements} />);

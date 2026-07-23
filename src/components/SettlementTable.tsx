@@ -7,6 +7,7 @@ import { useSortableData } from "@/hooks/useSortableData";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
 type SortKey = "anchor" | "amount" | "status";
 
@@ -49,6 +50,14 @@ export function SettlementTable({
 
   return (
     <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          anchor: "Anchor",
+          amount: "Amount",
+          status: "Status",
+        }}
+      />
       {/* Table view for larger screens */}
       <table className="hidden sm:table w-full text-left text-sm">
         <thead>

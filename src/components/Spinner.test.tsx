@@ -18,4 +18,12 @@ describe("Spinner", () => {
     const span = container.querySelector("span[aria-hidden]");
     expect(span).toHaveClass("motion-reduce:animate-none");
   });
+
+  it("exposes status role and polite live-region semantics", () => {
+    render(<Spinner label="Loading anchor details…" />);
+    const statusEl = screen.getByRole("status");
+    expect(statusEl).toBeInTheDocument();
+    expect(statusEl).toHaveAttribute("aria-live", "polite");
+    expect(statusEl).toHaveTextContent("Loading anchor details…");
+  });
 });

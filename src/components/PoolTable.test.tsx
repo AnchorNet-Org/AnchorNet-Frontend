@@ -5,6 +5,12 @@ import { PoolsPanel } from "./PoolsPanel";
 import * as api from "@/lib/api";
 import { Pool } from "@/lib/types";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(""),
+  usePathname: () => "/dashboard",
+}));
+
 const pools: Pool[] = [
   { asset: "XLM", total: 300, anchors: 2 },
   { asset: "USDC", total: 100, anchors: 5 },
@@ -69,6 +75,27 @@ describe("PoolTable", () => {
     const tfoot = document.querySelector("tfoot");
     expect(tfoot).toHaveTextContent("500");
     expect(tfoot).toHaveTextContent("3 anchors");
+  });
+
+  it("announces the new sort key and direction via a live region when clicked", () => {
+    const { container } = render(<PoolTable pools={pools} />);
+
+    // No announcement on initial render
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    // Click to sort by Total liquidity
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorted by Total liquidity, ascending");
+
+    // Click again to cycle to descending
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorted by Total liquidity, descending");
+
+    // Click again to cycle to unsorted
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorting cleared");
   });
 
   describe("initial aria-sort accessibility", () => {
@@ -147,16 +174,16 @@ describe("PoolsPanel", () => {
     render(<PoolsPanel />);
     // wait for loading -> ready state
     await waitFor(() =>
-      expect(screen.getByRole("search", { name: "Pools search and refresh" })).toBeInTheDocument(),
+      expect(screen.getByRole("search", { name: "Pools search" })).toBeInTheDocument(),
     );
     const searchRegion = screen.getByRole("search", {
-      name: "Pools search and refresh",
+      name: "Pools search",
     });
     expect(
       within(searchRegion).getByRole("textbox", { name: "Search pools" }),
     ).toBeInTheDocument();
     expect(
-      within(searchRegion).getByRole("button", { name: /refresh/i }),
+      screen.getByRole("button", { name: /refresh/i }),
     ).toBeInTheDocument();
   });
 });
