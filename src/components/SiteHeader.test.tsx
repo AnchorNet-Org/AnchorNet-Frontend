@@ -213,6 +213,108 @@ describe("SiteHeader active route marking", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Reset to system theme button
+// ---------------------------------------------------------------------------
+
+describe("SiteHeader reset to system theme", () => {
+  it("does not show the reset button when isOverridden is false (no stored override)", async () => {
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the reset button when isOverridden is true (stored override exists)", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /use system theme/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls resetToSystem when clicked and reverts toggle label to follow system", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark"); // override → isOverridden = true
+    mockMediaQuery(false); // system is light
+    renderHeader();
+
+    // Wait for the override to be read and reset button to appear
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    // After reset, the toggle should reflect the system preference (light)
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    // localStorage should be cleared
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    // Reset button should disappear
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the reset button after clicking it (isOverridden becomes false)", async () => {
+    localStorage.setItem(STORAGE_KEY, "light");
+    mockMediaQuery(true); // system is dark
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /use system theme/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not break the existing toggle when reset button is present", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    // Existing toggle should still work
+    const toggleBtn = screen.getByRole("button", {
+      name: /switch to light mode/i,
+    });
+    fireEvent.click(toggleBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Theme toggle button rendering
 // ---------------------------------------------------------------------------
 
