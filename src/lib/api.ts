@@ -82,6 +82,11 @@ export function retryDelayMs(attempt: number): number {
   return baseDelay + Math.random() * baseDelay;
 }
 
+/** True if `err` is a DOMException raised by an aborted fetch/signal. */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
