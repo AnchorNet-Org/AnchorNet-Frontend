@@ -42,7 +42,7 @@ describe("StatusBadge", () => {
     expect(getVisibleBadge(container)).toHaveClass("text-emerald-300");
 
     rerender(<StatusBadge status="cancelled" />);
-    expect(getVisibleBadge(container)).toHaveClass("text-zinc-300");
+    expect(getVisibleBadge(container)).toHaveClass("text-zinc-100");
   });
 
   it("renders a defined, non-fallback variant for every settlement status", () => {
