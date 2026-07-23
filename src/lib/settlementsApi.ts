@@ -2,7 +2,7 @@
  * API client for settlement endpoints.
  */
 
-import { apiRequest, apiTextRequest } from "./api";
+import { apiRequest, buildQueryParams } from "./api";
 import { Settlement, SettlementsPage } from "./types";
 
 /** Options for {@link fetchSettlements}. */
@@ -21,11 +21,7 @@ export async function fetchSettlements(
   options: FetchSettlementsOptions = {},
 ): Promise<SettlementsPage> {
   const { anchor, page, pageSize, signal } = options;
-  const params = new URLSearchParams();
-  if (anchor) params.set("anchor", anchor);
-  if (page) params.set("page", String(page));
-  if (pageSize) params.set("pageSize", String(pageSize));
-  const query = params.toString() ? `?${params.toString()}` : "";
+  const query = buildQueryParams({ anchor, page, pageSize });
   return apiRequest<SettlementsPage>(`/api/v1/settlements${query}`, {
     signal,
   });

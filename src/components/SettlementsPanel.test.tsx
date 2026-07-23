@@ -14,7 +14,7 @@ import {
   executeSettlement,
   cancelSettlement,
 } from "@/lib/settlementsApi";
-import { Settlement, SettlementsPage, Pool } from "@/lib/types";
+import { Settlement, SettlementsPage } from "@/lib/types";
 import { fetchPools } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -153,20 +153,29 @@ describe("SettlementsPanel", () => {
     expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
-  it("loads more settlements and appends them", async () => {
+  it("footer reflects filtered count after loading all pages and applying search", async () => {
+    // First page returns one settlement, second page returns another
     vi.mocked(fetchSettlements)
       .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
       .mockResolvedValueOnce(
-        page([{ ...sample, id: 2 }], { page: 2, totalPages: 2, total: 2 }),
+        page([{ ...sample, id: 2, anchor: "other" }], { page: 2, totalPages: 2, total: 2 }),
       );
 
     renderPanel();
     await screen.findByText("anchorA");
 
+    // Load the second page
     fireEvent.click(screen.getByRole("button", { name: /load more/i }));
-
     await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
-    expect(screen.getAllByText("anchorA")).toHaveLength(2);
+    // Both rows should be visible now
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByText("other")).toBeInTheDocument();
+
+    // Apply a search that matches only the first settlement
+    fireEvent.change(screen.getByLabelText("Search settlements"), { target: { value: "anchorA" } });
+
+    // Footer should reflect filtered count (1)
+    expect(await screen.findByText(/showing all 1 settlement/i)).toBeInTheDocument();
   });
 
   it("announces the number of newly-loaded settlements via a live region", async () => {
@@ -263,6 +272,37 @@ describe("SettlementsPanel", () => {
         amount: 400,
       }),
     );
+  });
+
+  it("surfaces a field-level error on failed open settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockRejectedValue(new Error("Insufficient liquidity"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => {
+      expect(openSettlement).toHaveBeenCalledWith({
+        anchor: "anchorA",
+        asset: "USDC",
+        amount: 400,
+      });
+      // Failure surfaces via the toast notification; the form itself keeps
+      // the entered values instead of clearing them (see SettlementForm's
+      // own "does not clear amount field if submission fails" coverage).
+      expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
+    });
   });
 
   it("blocks opening a settlement when amount exceeds available liquidity", async () => {
@@ -487,6 +527,39 @@ describe("SettlementsPanel", () => {
     );
   });
 
+  it("corrects the URL when the pageSize param is invalid", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The effective page size is the default (10), so the invalid param is
+    // written back — and since 10 is the default it is stripped entirely,
+    // leaving a clean URL instead of the misleading pageSize=999.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/settlements", {
+        scroll: false,
+      }),
+    );
+    // The selector reflects the effective value.
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("10");
+  });
+
+  it("does not rewrite the URL when the pageSize param is already valid", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // A valid value is respected exactly; no correction is written.
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("removes the pageSize param from the URL when set to the default", async () => {
     mockSearchParamsString = "pageSize=25";
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
@@ -500,6 +573,63 @@ describe("SettlementsPanel", () => {
 
     // 10 is the default so the param should be stripped
     expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
+  });
+
+  it("clears a stale Load-more error after a successful open", async () => {
+    // First load: two pages available.
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      // Load-more fails.
+      .mockRejectedValueOnce(new Error("network timeout"))
+      // reload() after open: back to page 1.
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Trigger a failing "Load more".
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(await screen.findByText("network timeout")).toBeInTheDocument();
+
+    // Now successfully open a settlement (fills the form and submits).
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(1));
+
+    // The stale error must be gone once the list has been refreshed.
+    await waitFor(() =>
+      expect(screen.queryByText("network timeout")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("exposes an accessible group for the toolbar controls", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const toolbar = screen.getByRole("search", {
+      name: "Settlements export, page size, and search",
+    });
+    expect(toolbar).toContainElement(
+      screen.getByRole("button", { name: "Export CSV" }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Rows per page"),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Search settlements"),
+    );
   });
 
   it("exports settlements as CSV", async () => {
@@ -539,8 +669,9 @@ describe("SettlementsPanel", () => {
     renderPanel();
     await screen.findByText("anchor1");
 
-    const row1 = screen.getByText("anchor1").closest("tr")!;
-    const row2 = screen.getByText("anchor2").closest("tr")!;
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
 
     const row1Execute = within(row1).getByRole("button", { name: "Execute" });
     const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
@@ -583,8 +714,9 @@ describe("SettlementsPanel", () => {
     renderPanel();
     await screen.findByText("anchor1");
 
-    const row1 = screen.getByText("anchor1").closest("tr")!;
-    const row2 = screen.getByText("anchor2").closest("tr")!;
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
 
     const row1Execute = within(row1).getByRole("button", { name: "Execute" });
     const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
@@ -612,5 +744,32 @@ describe("SettlementsPanel", () => {
     await waitFor(() => {
       expect(cancelSettlement).toHaveBeenCalledWith(1);
     });
+  });
+
+  it("indicates when the CSV export ignores the active search filter", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).toHaveAttribute(
+      "title",
+      "Export includes all settlements, ignoring the current search filter"
+    );
+  });
+
+  it("does not indicate ignored search filter when query is empty", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).not.toHaveAttribute("title");
   });
 });

@@ -77,3 +77,4 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
     </table>
   );
 }
+

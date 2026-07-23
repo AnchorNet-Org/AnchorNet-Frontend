@@ -44,6 +44,8 @@ export function AnchorForm({
 
   useEffect(() => {
     if (serverError) {
+      // Mirrors an externally supplied server validation error into the form.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrors((prev) => ({ ...prev, id: serverError }));
     }
   }, [serverError]);
