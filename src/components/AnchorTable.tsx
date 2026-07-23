@@ -26,7 +26,7 @@ export function AnchorTable({
   /** Ids of anchors with a deactivation currently in flight. */
   deregisteringIds?: Set<string>;
 }) {
-  const { sorted, sort, requestSort } = useSortableData<Anchor, SortKey>(
+  const { sorted, sort, requestSort, clearSort } = useSortableData<Anchor, SortKey>(
     anchors,
     getSortValue,
   );
@@ -53,18 +53,21 @@ export function AnchorTable({
             sortKey="name"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Registered"
             sortKey="registeredAt"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Status"
             sortKey="active"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           {onDeregister ? <th className="py-2" /> : null}
         </tr>

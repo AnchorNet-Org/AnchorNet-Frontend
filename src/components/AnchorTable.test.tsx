@@ -45,6 +45,19 @@ describe("AnchorTable", () => {
     expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<AnchorTable anchors={anchors} />);
+    const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(nameCells()).toEqual(["Charliec", "Alphaa", "Bravob"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by registered date on a second click", () => {
     render(<AnchorTable anchors={anchors} />);
     fireEvent.click(screen.getByLabelText("Sort by Registered"));
