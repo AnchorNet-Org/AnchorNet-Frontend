@@ -162,10 +162,13 @@ describe("ThemeProvider", () => {
     act(() => emitSystemThemeChange(true));
     expect(screen.getByTestId("theme")).toHaveTextContent("dark");
 
-    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    act(() => emitSystemThemeChange(false));
     expect(screen.getByTestId("theme")).toHaveTextContent("light");
 
-    act(() => emitSystemThemeChange(true));
-    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+
+    act(() => emitSystemThemeChange(false));
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
   });
 });

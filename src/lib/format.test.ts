@@ -4,7 +4,7 @@ import {
   pluralize,
   feeInBps,
   formatStatus,
-  formatDate,
+  formatDate, formatPercent,
 } from "./format";
 
 describe("formatAmount", () => {
@@ -56,5 +56,26 @@ describe("formatDate", () => {
   it("returns a dash for empty or invalid input", () => {
     expect(formatDate("")).toBe("—");
     expect(formatDate("not-a-date")).toBe("—");
+  });
+
+  it("uses the local calendar date even when it differs from the UTC date", () => {
+    // 2026-01-15T23:30:00-08:00 is 2026-01-16T07:30:00Z in UTC.
+    // In a local time zone at or behind UTC-8 (e.g. America/Los_Angeles,
+    // configured via TZ for the test run), this should resolve to the
+    // 15th — the day the timestamp actually occurred locally — not the
+    // 16th, which is what the old UTC-based implementation returned.
+    const iso = "2026-01-15T23:30:00-08:00";
+    expect(formatDate(iso)).toBe("2026-01-15");
+  });
+});
+
+describe("formatPercent", () => {
+  it("formats with default 1 decimal place", () => {
+    expect(formatPercent(75)).toBe("75.0%");
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+  it("allows custom digits", () => {
+    expect(formatPercent(75, 2)).toBe("75.00%");
+    expect(formatPercent(75.123, 3)).toBe("75.123%");
   });
 });

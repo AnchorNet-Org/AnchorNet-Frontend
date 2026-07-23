@@ -9,11 +9,8 @@ import {
 } from "@testing-library/react";
 import { SettlementDetail } from "./SettlementDetail";
 import { ToastProvider } from "./ToastProvider";
-import {
-  fetchSettlement,
-  executeSettlement,
-  cancelSettlement,
-} from "@/lib/settlementsApi";
+import { fetchSettlement, executeSettlement, cancelSettlement } from "@/lib/settlementsApi";
+import { ApiRequestError } from "@/lib/api";
 import { Settlement } from "@/lib/types";
 
 vi.mock("@/lib/settlementsApi", () => ({
@@ -69,13 +66,18 @@ describe("SettlementDetail", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows an error message when the settlement fails to load", async () => {
-    vi.mocked(fetchSettlement).mockRejectedValue(new Error("not found"));
+  it("shows a not‑found message when the settlement returns 404", async () => {
+    vi.mocked(fetchSettlement).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "Not found"));
 
     renderDetail();
 
-    expect(await screen.findByText(/not found/i)).toBeInTheDocument();
+    // Expect the distinct not‑found text
+    expect(await screen.findByText(/settlement not found/i)).toBeInTheDocument();
+    const backLink = screen.getByRole('link', { name: /back to settlements/i });
+    expect(backLink).toBeInTheDocument();
+    expect(backLink).toHaveAttribute('href', '/settlements');
   });
+
 
   it("hides execute/cancel actions for a non-pending settlement", async () => {
     vi.mocked(fetchSettlement).mockResolvedValue({

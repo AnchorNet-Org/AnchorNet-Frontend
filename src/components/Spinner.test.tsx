@@ -12,4 +12,10 @@ describe("Spinner", () => {
     render(<Spinner label="Loading anchor…" />);
     expect(screen.getByText("Loading anchor…")).toBeInTheDocument();
   });
+
+  it("includes the motion-reduce class to disable spin animation", () => {
+    const { container } = render(<Spinner />);
+    const span = container.querySelector("span[aria-hidden]");
+    expect(span).toHaveClass("motion-reduce:animate-none");
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 import { RouteError } from "@/components/RouteError";
 
 export default function DashboardError({
@@ -11,15 +11,12 @@ export default function DashboardError({
   reset: () => void;
 }) {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-6 py-12">
+    <PageShell maxWidth="max-w-5xl">
         <RouteError
           error={error}
           reset={reset}
           title="Could not load the dashboard"
         />
-      </main>
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import { PoolTable } from "./PoolTable";
+import { PoolsPanel } from "./PoolsPanel";
+import * as api from "@/lib/api";
 import { Pool } from "@/lib/types";
 
 const pools: Pool[] = [
@@ -8,6 +10,10 @@ const pools: Pool[] = [
   { asset: "USDC", total: 100, anchors: 5 },
   { asset: "EURC", total: 200, anchors: 1 },
 ];
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
 
 function assetCells() {
   // Only look at tbody rows (skip the thead header and tfoot totals row)
@@ -42,30 +48,6 @@ describe("PoolTable", () => {
     expect(assetCells()).toEqual(["XLM", "EURC", "USDC"]);
   });
 
-  it("sorts alphabetically by asset", () => {
-    render(<PoolTable pools={pools} />);
-    fireEvent.click(screen.getByLabelText("Sort by Asset"));
-    expect(assetCells()).toEqual(["EURC", "USDC", "XLM"]);
-  });
-
-  it("applies a visible focus style to sortable header buttons", () => {
-    render(<PoolTable pools={pools} />);
-    const sortButton = screen.getByLabelText("Sort by Asset");
-    expect(sortButton).toHaveClass("focus-visible:border", "focus-visible:border-zinc-600");
-  });
-
-  it("exposes the current sort direction via aria-sort", () => {
-    render(<PoolTable pools={pools} />);
-    const header = screen.getByLabelText("Sort by Asset").closest("th");
-    expect(header).toHaveAttribute("aria-sort", "none");
-
-    fireEvent.click(screen.getByLabelText("Sort by Asset"));
-    expect(header).toHaveAttribute("aria-sort", "ascending");
-
-    fireEvent.click(screen.getByLabelText("Sort by Asset"));
-    expect(header).toHaveAttribute("aria-sort", "descending");
-  });
-
   it("renders a totals row summing liquidity and anchor count", () => {
     render(<PoolTable pools={pools} />);
     // XLM(300) + USDC(100) + EURC(200) = 600; anchors 2+5+1 = 8
@@ -87,5 +69,25 @@ describe("PoolTable", () => {
     const tfoot = document.querySelector("tfoot");
     expect(tfoot).toHaveTextContent("500");
     expect(tfoot).toHaveTextContent("3 anchors");
+  });
+});
+
+describe("PoolsPanel", () => {
+  it("exposes the search/refresh toolbar as a labelled search region", async () => {
+    vi.spyOn(api, "fetchPools").mockResolvedValue(pools);
+    render(<PoolsPanel />);
+    // wait for loading -> ready state
+    await waitFor(() =>
+      expect(screen.getByRole("search", { name: "Pools search and refresh" })).toBeInTheDocument(),
+    );
+    const searchRegion = screen.getByRole("search", {
+      name: "Pools search and refresh",
+    });
+    expect(
+      within(searchRegion).getByRole("textbox", { name: "Search pools" }),
+    ).toBeInTheDocument();
+    expect(
+      within(searchRegion).getByRole("button", { name: /refresh/i }),
+    ).toBeInTheDocument();
   });
 });

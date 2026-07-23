@@ -402,6 +402,35 @@ describe("AnchorsPanel", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("corrects an invalid status URL param to 'all'", async () => {
+    mockSearchParamsString = "status=bogus";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // The effect should have fired and called router.replace without status=bogus.
+    // Because 'all' is the default, useQueryState strips it from the URL entirely.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/anchors", { scroll: false }),
+    );
+  });
+
+  it("does not correct the URL when the status param is already valid", async () => {
+    mockSearchParamsString = "status=active";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // No corrective router.replace should have been triggered for a valid value.
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   // -------------------------------------------------------------------------
   // Arrow-key roving focus tests
   // -------------------------------------------------------------------------
