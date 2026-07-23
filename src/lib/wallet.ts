@@ -22,13 +22,22 @@ const STELLAR_ADDRESS_PATTERN = /^G[A-Z0-9]{55}$/;
 /** Persists the connected wallet account so it survives a page refresh. */
 export function saveAccount(account: WalletAccount): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(account));
+  } catch {
+    // Silently fail if storage is unavailable
+  }
 }
 
 /** Reads a previously persisted wallet account, if any and well-formed. */
 export function loadAccount(): WalletAccount | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<WalletAccount>;
@@ -43,8 +52,12 @@ export function loadAccount(): WalletAccount | null {
 /** Clears any persisted wallet account and its session seed. */
 export function clearAccount(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.localStorage.removeItem(SEED_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(SEED_STORAGE_KEY);
+  } catch {
+    // Silently fail if storage is unavailable
+  }
 }
 
 /** Shortens an address for display, e.g. "GABC…WXYZ". */
@@ -90,11 +103,20 @@ function generateRandomSeed(): string {
 function getOrGenerateSessionSeed(): string {
   if (typeof window === "undefined") return "ANCHORNET";
 
-  const stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+  } catch {
+    // Ignore error
+  }
   if (stored) return stored;
 
   const seed = generateRandomSeed();
-  window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+  try {
+    window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+  } catch {
+    // Ignore error
+  }
   return seed;
 }
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { SettlementTable } from "./SettlementTable";
 import { Settlement } from "@/lib/types";
+import { formatAmount } from "@/lib/format";
 
 function settlement(overrides: Partial<Settlement>): Settlement {
   return {
@@ -55,8 +56,9 @@ describe("SettlementTable sorting", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const table = within(document.querySelector("table")!);
+    fireEvent.click(table.getByRole("button", { name: "Execute" }));
+    fireEvent.click(table.getByRole("button", { name: "Cancel" }));
 
     expect(onExecute).toHaveBeenCalledWith(1);
     expect(onCancel).toHaveBeenCalledWith(1);
@@ -65,7 +67,7 @@ describe("SettlementTable sorting", () => {
   it("shows the amount and fee totals for the visible rows", () => {
     render(<SettlementTable settlements={settlements} />);
 
-    const totalRow = screen.getByText("Total (visible rows)").closest("tr");
+    const totalRow = document.querySelector("tfoot tr");
     expect(totalRow).not.toBeNull();
     expect(within(totalRow!).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
       "Total (visible rows)",
@@ -128,7 +130,7 @@ describe("SettlementTable sorting", () => {
 
   it("announces the new sort key and direction via a live region when clicked", () => {
     const { container } = render(<SettlementTable settlements={settlements} />);
-    
+
     // No announcement on initial render
     const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
     expect(liveRegion).toBeInTheDocument();
@@ -145,5 +147,116 @@ describe("SettlementTable sorting", () => {
     // Click again to cycle to unsorted
     fireEvent.click(screen.getByLabelText("Sort by Amount"));
     expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
+
+  describe("initial aria-sort accessibility", () => {
+    it("announces all column headers as aria-sort=none on initial render", () => {
+      render(<SettlementTable settlements={settlements} />);
+
+      const anchorHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const amountHeader = screen.getByLabelText("Sort by Amount").closest("th");
+      const statusHeader = screen.getByLabelText("Sort by Status").closest("th");
+
+      expect(anchorHeader).toHaveAttribute("aria-sort", "none");
+      expect(amountHeader).toHaveAttribute("aria-sort", "none");
+      expect(statusHeader).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("updates aria-sort to ascending on first column click", () => {
+      render(<SettlementTable settlements={settlements} />);
+      const header = screen.getByLabelText("Sort by Amount").closest("th");
+
+      expect(header).toHaveAttribute("aria-sort", "none");
+
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("updates aria-sort to descending on second column click", () => {
+      render(<SettlementTable settlements={settlements} />);
+      const header = screen.getByLabelText("Sort by Amount").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      expect(header).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("resets aria-sort to none on third column click", () => {
+      render(<SettlementTable settlements={settlements} />);
+      const header = screen.getByLabelText("Sort by Amount").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      expect(header).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("switches aria-sort between columns when clicking different headers", () => {
+      render(<SettlementTable settlements={settlements} />);
+      const anchorHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const amountHeader = screen.getByLabelText("Sort by Amount").closest("th");
+
+      // Click Anchor (first sort)
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(anchorHeader).toHaveAttribute("aria-sort", "ascending");
+      expect(amountHeader).toHaveAttribute("aria-sort", "none");
+
+      // Click Amount (switches to that column, ascending)
+      fireEvent.click(screen.getByLabelText("Sort by Amount"));
+      expect(anchorHeader).toHaveAttribute("aria-sort", "none");
+      expect(amountHeader).toHaveAttribute("aria-sort", "ascending");
+    });
+  });
+});
+
+describe("SettlementTable per-row in-flight actions", () => {
+  it("disables Execute and Cancel buttons only for pending settlement IDs", () => {
+    const onExecute = () => {};
+    const onCancel = () => {};
+    render(
+      <SettlementTable
+        settlements={settlements}
+        onExecute={onExecute}
+        onCancel={onCancel}
+        pendingIds={new Set([2])}
+      />,
+    );
+
+    const rows = within(document.querySelector("tbody")!).getAllByRole("row");
+    const row1Execute = within(rows[0]).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(rows[0]).getByRole("button", { name: "Cancel" });
+
+    const row2Execute = within(rows[1]).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(rows[1]).getByRole("button", { name: "Cancel" });
+
+    const row3Execute = within(rows[2]).getByRole("button", { name: "Execute" });
+    const row3Cancel = within(rows[2]).getByRole("button", { name: "Cancel" });
+
+    expect(row1Execute).not.toBeDisabled();
+    expect(row1Cancel).not.toBeDisabled();
+
+    expect(row2Execute).toBeDisabled();
+    expect(row2Cancel).toBeDisabled();
+
+    expect(row3Execute).not.toBeDisabled();
+    expect(row3Cancel).not.toBeDisabled();
+  });
+});
+
+describe("SettlementTable mobile layout", () => {
+  it("renders a card for each settlement with correct data", () => {
+    render(<SettlementTable settlements={settlements} />);
+    const cards = screen.getAllByTestId("settlement-card");
+    expect(cards).toHaveLength(settlements.length);
+    settlements.forEach((s) => {
+      const card = screen
+        .getByText(`Settlement #${s.id}`)
+        .closest('[data-testid="settlement-card"]');
+      expect(card).toBeInTheDocument();
+      expect(within(card!).getByText(s.anchor)).toBeInTheDocument();
+      expect(within(card!).getByText(s.asset)).toBeInTheDocument();
+      expect(within(card!).getByText(formatAmount(s.amount))).toBeInTheDocument();
+      expect(within(card!).getByText(formatAmount(s.fee))).toBeInTheDocument();
+    });
   });
 });

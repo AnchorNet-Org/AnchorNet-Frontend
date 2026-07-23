@@ -5,11 +5,14 @@ import { isAbortError } from "@/lib/api";
 
 export type AsyncState<T> =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; error?: unknown }
   | { status: "ready"; data: T };
 
 /**
  * Runs an abortable async loader on mount and exposes a `reload` trigger.
+ *
+ * If seeded with an already-"ready" `initialState`, the initial fetch on mount
+ * is skipped; re-running is driven by `reload` or `refresh`.
  *
  * The loader is expected to be behaviourally stable; re-running is driven by
  * `reload`, which also surfaces a loading state.
@@ -43,6 +46,10 @@ export function useAsync<T>(
   );
 
   useEffect(() => {
+    if (nonce === 0 && initialState.status === "ready") {
+      return;
+    }
+
     const controller = new AbortController();
     load(controller.signal)
       .then((data) => setState({ status: "ready", data }))
@@ -63,6 +70,7 @@ export function useAsync<T>(
         setState({
           status: "error",
           message: err instanceof Error ? err.message : "Request failed",
+          error: err,
         });
       })
       .finally(() => {

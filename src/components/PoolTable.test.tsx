@@ -79,7 +79,7 @@ describe("PoolTable", () => {
 
   it("announces the new sort key and direction via a live region when clicked", () => {
     const { container } = render(<PoolTable pools={pools} />);
-    
+
     // No announcement on initial render
     const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
     expect(liveRegion).toBeInTheDocument();
@@ -96,6 +96,75 @@ describe("PoolTable", () => {
     // Click again to cycle to unsorted
     fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
     expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
+
+  describe("initial aria-sort accessibility", () => {
+    it("announces all column headers as aria-sort=none on initial render", () => {
+      render(<PoolTable pools={pools} />);
+
+      const assetHeader = screen.getByLabelText("Sort by Asset").closest("th");
+      const liquidityHeader = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+      const anchorsHeader = screen.getByLabelText("Sort by Anchors").closest("th");
+
+      expect(assetHeader).toHaveAttribute("aria-sort", "none");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "none");
+      expect(anchorsHeader).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("updates aria-sort to ascending on first column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      expect(header).toHaveAttribute("aria-sort", "none");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("updates aria-sort to descending on second column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("resets aria-sort to none on third column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("switches aria-sort between columns when clicking different headers", () => {
+      render(<PoolTable pools={pools} />);
+      const assetHeader = screen.getByLabelText("Sort by Asset").closest("th");
+      const liquidityHeader = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      // Click Asset (first sort)
+      fireEvent.click(screen.getByLabelText("Sort by Asset"));
+      expect(assetHeader).toHaveAttribute("aria-sort", "ascending");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "none");
+
+      // Click Liquidity (switches to that column, ascending)
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(assetHeader).toHaveAttribute("aria-sort", "none");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "ascending");
+    });
   });
 });
 

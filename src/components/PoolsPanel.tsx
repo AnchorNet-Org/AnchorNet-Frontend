@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { fetchPools } from "@/lib/api";
 import { formatAmount } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
@@ -26,6 +26,16 @@ export function PoolsPanel() {
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
+  // Hooks must run unconditionally on every render, so these are computed
+  // here (before the early loading/error returns below) rather than after.
+  const pools = state.status === "ready" ? state.data : [];
+  const totalLiquidity = useMemo(() => pools.reduce((sum, p) => sum + p.total, 0), [pools]);
+  const positions = useMemo(() => pools.reduce((sum, p) => sum + p.anchors, 0), [pools]);
+  const filteredPools = useMemo(
+    () => pools.filter((pool) => matchesQuery([pool.asset], debouncedQuery)),
+    [pools, debouncedQuery],
+  );
+
   if (state.status === "loading") {
     return (
       <Card>
@@ -50,12 +60,6 @@ export function PoolsPanel() {
       </Card>
     );
   }
-
-  const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
-  const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
-  const filteredPools = state.data.filter((pool) =>
-    matchesQuery([pool.asset], debouncedQuery),
-  );
 
   return (
     <div className="space-y-6">
@@ -90,7 +94,7 @@ export function PoolsPanel() {
                   aria-label="Search pools"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search pools…"
+                  placeholder="Search pools… (/)"
                   className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
                 />
               </div>

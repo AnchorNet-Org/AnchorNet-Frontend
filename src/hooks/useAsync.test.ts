@@ -222,4 +222,61 @@ describe("useAsync", () => {
     await act(async () => rejectSecond(new Error("The operation was aborted")));
     expect(result.current.state).toEqual({ status: "ready", data: "third" });
   });
+
+  describe("ready initialState handling", () => {
+    it("skips the initial load call on mount when seeded with a ready initialState", () => {
+      const load = vi.fn().mockResolvedValue("fetched");
+      const { result } = renderHook(() =>
+        useAsync(load, { status: "ready", data: "initial" }),
+      );
+
+      expect(result.current.state).toEqual({
+        status: "ready",
+        data: "initial",
+      });
+      expect(load).not.toHaveBeenCalled();
+    });
+
+    it("triggers a fetch on explicit reload even when seeded with a ready initialState", async () => {
+      const load = vi.fn().mockResolvedValue("reloaded");
+      const { result } = renderHook(() =>
+        useAsync(load, { status: "ready", data: "initial" }),
+      );
+
+      expect(load).not.toHaveBeenCalled();
+
+      act(() => result.current.reload());
+      expect(result.current.state.status).toBe("loading");
+
+      await waitFor(() => {
+        expect(result.current.state).toEqual({
+          status: "ready",
+          data: "reloaded",
+        });
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+    });
+
+    it("triggers a fetch on explicit refresh even when seeded with a ready initialState", async () => {
+      const load = vi.fn().mockResolvedValue("refreshed");
+      const { result } = renderHook(() =>
+        useAsync(load, { status: "ready", data: "initial" }),
+      );
+
+      expect(load).not.toHaveBeenCalled();
+
+      act(() => {
+        void result.current.refresh();
+      });
+      expect(result.current.state.status).toBe("ready");
+
+      await waitFor(() => {
+        expect(result.current.state).toEqual({
+          status: "ready",
+          data: "refreshed",
+        });
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+    });
+  });
 });

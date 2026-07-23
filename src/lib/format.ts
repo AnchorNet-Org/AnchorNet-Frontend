@@ -53,3 +53,8 @@ export function formatDate(iso: string): string {
 
   return `${year}-${month}-${day}`;
 }
+
+/** Formats a number as a percentage string with given decimal places (default 1). */
+export function formatPercent(value: number, digits: number = 1): string {
+  return `${value.toFixed(digits)}%`;
+}

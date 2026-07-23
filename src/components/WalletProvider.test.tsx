@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { WalletProvider } from "./WalletProvider";
 import { useWallet } from "@/hooks/useWallet";
@@ -183,5 +183,55 @@ describe("WalletProvider", () => {
     // Account should still be shown (not reset to disconnected)
     expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
     expect(screen.getByText(address)).toBeInTheDocument();
+  });
+
+  it("connects in-memory even if localStorage.setItem throws", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+
+    fireEvent.click(screen.getByText("connect"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText(/G[A-Z0-9]{55}/)).toBeInTheDocument();
+  });
+
+  it("disconnects in-memory even if localStorage.removeItem throws", async () => {
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+
+    render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+
+    fireEvent.click(screen.getByText("connect"));
+    await waitFor(() => {
+      expect(screen.queryByText("disconnected")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("disconnect"));
+    expect(screen.getByText("disconnected")).toBeInTheDocument();
+  });
+
+  it("handles unmount before initial load completes", async () => {
+    const { unmount } = render(
+      <WalletProvider>
+        <WalletStatus />
+      </WalletProvider>,
+    );
+    unmount();
+    // Wait a tick to ensure the microtask runs
+    await Promise.resolve();
   });
 });

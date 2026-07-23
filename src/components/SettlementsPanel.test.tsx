@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { SettlementsPanel } from "./SettlementsPanel";
 import { ToastProvider } from "./ToastProvider";
@@ -115,8 +116,55 @@ describe("SettlementsPanel", () => {
       target: { value: "anchorA" },
     });
 
+    // Filtering is debounced, so the non-matching row only drops out once the
+    // debounce delay has elapsed.
+    await waitFor(() =>
+      expect(screen.queryByText("other")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText("anchorA")).toBeInTheDocument();
-    expect(screen.queryByText("other")).not.toBeInTheDocument();
+  });
+
+  it("debounces the search filter, updating the list only after the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSettlements).mockResolvedValue(
+        page([sample, { ...sample, id: 2, anchor: "other" }]),
+      );
+
+      renderPanel();
+
+      // Flush the mocked fetch promise and mount effects so the list renders.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search settlements"), {
+        target: { value: "anchorA" },
+      });
+
+      // The input reflects the keystroke immediately (no typing lag)...
+      expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+      // ...but the filtered list has not been recomputed yet.
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Just before the debounce elapses, the list is still unchanged.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Once the debounce delay elapses, the non-matching row is filtered out.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.queryByText("other")).not.toBeInTheDocument();
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the no-data empty state without a clear-filters action", async () => {
@@ -142,14 +190,19 @@ describe("SettlementsPanel", () => {
       target: { value: "zzz" },
     });
 
-    expect(
-      screen.getByText("No settlements match your search."),
-    ).toBeInTheDocument();
+    // The no-results state appears only after the debounce delay elapses.
+    await waitFor(() =>
+      expect(
+        screen.getByText("No settlements match your search."),
+      ).toBeInTheDocument(),
+    );
     expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("anchorA")).toBeInTheDocument(),
+    );
     expect(screen.getByLabelText("Search settlements")).toHaveValue("");
   });
 
@@ -653,6 +706,97 @@ describe("SettlementsPanel", () => {
 
     // Check if the download link was created
     expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("disables row action buttons while executeSettlement is in flight, keeping other rows enabled", async () => {
+    const s1 = { ...sample, id: 1, anchor: "anchor1" };
+    const s2 = { ...sample, id: 2, anchor: "anchor2" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([s1, s2]));
+
+    let resolveExecute!: (val: Settlement) => void;
+    const executePromise = new Promise<Settlement>((resolve) => {
+      resolveExecute = resolve;
+    });
+    vi.mocked(executeSettlement).mockImplementation(() => executePromise);
+
+    renderPanel();
+    await screen.findByText("anchor1");
+
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
+
+    const row1Execute = within(row1).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
+    const row2Execute = within(row2).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(row2).getByRole("button", { name: "Cancel" });
+
+    expect(row1Execute).not.toBeDisabled();
+    expect(row1Cancel).not.toBeDisabled();
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    fireEvent.click(row1Execute);
+
+    await waitFor(() => expect(row1Execute).toBeDisabled());
+    expect(row1Cancel).toBeDisabled();
+
+    // Other row remains enabled
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    // Resolve the promise
+    resolveExecute({ ...s1, status: "executed" });
+
+    await waitFor(() => {
+      expect(executeSettlement).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("disables row action buttons while cancelSettlement is in flight, keeping other rows enabled", async () => {
+    const s1 = { ...sample, id: 1, anchor: "anchor1" };
+    const s2 = { ...sample, id: 2, anchor: "anchor2" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([s1, s2]));
+
+    let resolveCancel!: (val: Settlement) => void;
+    const cancelPromise = new Promise<Settlement>((resolve) => {
+      resolveCancel = resolve;
+    });
+    vi.mocked(cancelSettlement).mockImplementation(() => cancelPromise);
+
+    renderPanel();
+    await screen.findByText("anchor1");
+
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
+
+    const row1Execute = within(row1).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
+    const row2Execute = within(row2).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(row2).getByRole("button", { name: "Cancel" });
+
+    fireEvent.click(row1Cancel);
+
+    // Confirm dialog is open
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel settlement" }),
+    );
+
+    await waitFor(() => expect(row1Execute).toBeDisabled());
+    expect(row1Cancel).toBeDisabled();
+
+    // Other row remains enabled
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    // Resolve cancel promise
+    resolveCancel({ ...s1, status: "cancelled" });
+
+    await waitFor(() => {
+      expect(cancelSettlement).toHaveBeenCalledWith(1);
+    });
   });
 
   it("indicates when the CSV export ignores the active search filter", async () => {

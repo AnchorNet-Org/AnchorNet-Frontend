@@ -12,7 +12,6 @@ import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
@@ -54,7 +53,6 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
@@ -67,30 +65,6 @@ export function AnchorsPanel() {
   const deregisteringRef = useRef<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
-
-  // One ref per filter button for imperative focus management (roving tabindex).
-  const filterRefs = useRef<Array<HTMLButtonElement | null>>(
-    Array(FILTERS.length).fill(null),
-  );
-
-  /** Arrow-key / Home / End roving focus across the filter button group. */
-  function onFilterKeyDown(
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) {
-    const last = FILTERS.length - 1;
-    let next: number | null = null;
-
-    if (event.key === "ArrowRight") next = index === last ? 0 : index + 1;
-    else if (event.key === "ArrowLeft") next = index === 0 ? last : index - 1;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = last;
-
-    if (next !== null) {
-      event.preventDefault();
-      filterRefs.current[next]?.focus();
-    }
-  }
 
   // Sync status filter and search query to the URL querystring.
   // Initial values are hydrated from the URL on first render.
@@ -106,10 +80,6 @@ export function AnchorsPanel() {
   }, [rawStatus, setStatus]);
 
   const [query, setQuery] = useQueryState("q", "");
-
-  // Debounce only the value that drives filtering so large anchor lists aren't
-  // re-filtered on every keystroke; the input stays bound to `query` above.
-  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
 
   const filteredAnchors =
     state.status === "ready"
@@ -180,9 +150,7 @@ export function AnchorsPanel() {
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
-                    ref={(el) => { filterRefs.current[i] = el; }}
                     onClick={() => setStatus(f.value)}
-                    onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
                     tabIndex={filter === f.value ? 0 : -1}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${

@@ -12,6 +12,7 @@ import { Settlement, Pagination, Pool } from "@/lib/types";
 import { fetchPools } from "@/lib/api";
 import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
@@ -21,6 +22,12 @@ import { SettlementForm } from "./SettlementForm";
 import { SettlementTable } from "./SettlementTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
+
+/**
+ * Delay (ms) before a paused search query is applied to the filtered list.
+ * The input itself stays bound to the immediate value, so typing never lags.
+ */
+const SEARCH_DEBOUNCE_MS = 200;
 
 /** Selectable page sizes for the settlements list; the first is the default. */
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -50,9 +57,12 @@ export function SettlementsPanel() {
   // Empty on initial load so nothing is announced until the user paginates.
   const [loadMoreAnnouncement, setLoadMoreAnnouncement] = useState("");
   const [pending, setPending] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null);
+  const [pendingSettlementIds, setPendingSettlementIds] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [pools, setPools] = useState<Pool[]>([]);
+  const [exporting, setExporting] = useState(false);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
@@ -125,11 +135,11 @@ export function SettlementsPanel() {
 
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
-    setState({ status: "loading" });
     setRawPageSize(String(size));
   }
 
   async function loadMore() {
+    if (loadingMore) return;
     if (state.status !== "ready") return;
     setLoadingMore(true);
     setMoreError(null);
@@ -162,9 +172,11 @@ export function SettlementsPanel() {
   }
 
   async function runSettlementAction(
+    id: number,
     action: () => Promise<Settlement>,
     successMessage: string,
   ) {
+    setPendingSettlementIds((prev) => new Set(prev).add(id));
     try {
       const updatedSettlement = await action();
       setState((previous) =>
@@ -182,6 +194,12 @@ export function SettlementsPanel() {
       notify("success", successMessage);
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setPendingSettlementIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -225,15 +243,24 @@ export function SettlementsPanel() {
     }
   }
 
+  // Debounce only the value that drives filtering so large settlement lists
+  // aren't re-filtered on every keystroke; the input stays bound to `query`.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+
   const visibleSettlements =
     state.status === "ready"
       ? state.settlements.filter((s) =>
-          matchesQuery([s.id, s.anchor, s.asset], query),
+          matchesQuery([s.id, s.anchor, s.asset], debouncedQuery),
         )
       : [];
 
   // Determine count to display in the footer
-  const displayCount = query.trim() ? visibleSettlements.length : state.pagination.total;
+  const displayCount =
+    state.status === "ready"
+      ? query.trim()
+        ? visibleSettlements.length
+        : state.pagination.total
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -302,11 +329,13 @@ export function SettlementsPanel() {
                 settlements={visibleSettlements}
                 onExecute={(id) =>
                   runSettlementAction(
+                    id,
                     () => executeSettlement(id),
                     `Executed settlement #${id}.`,
                   )
                 }
                 onCancel={setPendingCancelId}
+                pendingIds={pendingSettlementIds}
               />
             )}
             {state.pagination.page < state.pagination.totalPages ? (
@@ -342,6 +371,7 @@ export function SettlementsPanel() {
           setPendingCancelId(null);
           if (id !== null) {
             runSettlementAction(
+              id,
               () => cancelSettlement(id),
               `Cancelled settlement #${id}.`,
             );

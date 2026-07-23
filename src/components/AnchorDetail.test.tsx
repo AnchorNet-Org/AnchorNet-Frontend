@@ -9,6 +9,7 @@ import {
 import { AnchorDetail } from "./AnchorDetail";
 import { ToastProvider } from "./ToastProvider";
 import { fetchAnchor, deregisterAnchor } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
 
 vi.mock("@/lib/anchorsApi", () => ({
   fetchAnchor: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock("@/lib/anchorsApi", () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 function renderDetail(id = "anchorA") {
@@ -61,13 +62,18 @@ describe("AnchorDetail", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows an error message when the anchor fails to load", async () => {
-    vi.mocked(fetchAnchor).mockRejectedValue(new Error("not found"));
+  it("shows a not‑found message when the anchor returns 404", async () => {
+    vi.mocked(fetchAnchor).mockRejectedValue(new ApiRequestError(404, "NOT_FOUND", "Not found"));
 
     renderDetail();
 
-    expect(await screen.findByText(/not found/i)).toBeInTheDocument();
+    // Expect the distinct not‑found text
+    expect(await screen.findByText(/anchor not found/i)).toBeInTheDocument();
+    const backLink = screen.getByRole("link", { name: /back to anchors/i });
+    expect(backLink).toBeInTheDocument();
+    expect(backLink).toHaveAttribute("href", "/anchors");
   });
+
 
   it("hides the deactivate action for an already-inactive anchor", async () => {
     vi.mocked(fetchAnchor).mockResolvedValue({
@@ -111,5 +117,56 @@ describe("AnchorDetail", () => {
     await waitFor(() =>
       expect(deregisterAnchor).toHaveBeenCalledWith("anchorA"),
     );
+  });
+
+  it("skips fetchAnchor on mount when initialData is provided", () => {
+    const initialData = {
+      id: "anchorA",
+      name: "Anchor A (Seeded)",
+      registeredAt: "2026-01-01T00:00:00.000Z",
+      active: true,
+    };
+
+    render(
+      <ToastProvider>
+        <AnchorDetail id="anchorA" initialData={initialData} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Anchor A (Seeded)")).toBeInTheDocument();
+    expect(fetchAnchor).not.toHaveBeenCalled();
+  });
+
+  it("calls fetchAnchor when reloading after deactivating an anchor initialized with initialData", async () => {
+    const initialData = {
+      id: "anchorA",
+      name: "Anchor A (Seeded)",
+      registeredAt: "2026-01-01T00:00:00.000Z",
+      active: true,
+    };
+    vi.mocked(deregisterAnchor).mockResolvedValue({
+      ...initialData,
+      active: false,
+    });
+    vi.mocked(fetchAnchor).mockResolvedValue({
+      ...initialData,
+      active: false,
+    });
+
+    render(
+      <ToastProvider>
+        <AnchorDetail id="anchorA" initialData={initialData} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("Anchor A (Seeded)")).toBeInTheDocument();
+    expect(fetchAnchor).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+
+    await waitFor(() => expect(deregisterAnchor).toHaveBeenCalledWith("anchorA"));
+    await waitFor(() => expect(fetchAnchor).toHaveBeenCalledTimes(1));
   });
 });
