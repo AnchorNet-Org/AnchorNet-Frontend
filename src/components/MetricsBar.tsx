@@ -34,7 +34,17 @@ export function MetricsBar() {
   if (state.status === "loading") {
     return (
       <Card>
-        <Spinner label="Loading metrics…" />
+        <div className="flex items-start gap-2">
+          <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatCard label="Active anchors" value="" loading />
+            <StatCard label="Pools" value="" loading />
+            <StatCard label="Total liquidity" value="" loading />
+            <StatCard label="Settlements" value="" loading />
+          </div>
+
+          {/* Refresh button placeholder */}
+          <div className="mt-1 h-6 w-6 animate-pulse rounded-full bg-zinc-800" />
+        </div>
       </Card>
     );
   }
@@ -55,13 +65,13 @@ export function MetricsBar() {
       <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="Active anchors"
-          value={`${m.activeAnchors}/${m.anchors}`}
+          value={`${formatAmount(m.activeAnchors)}/${formatAmount(m.anchors)}`}
         />
-        <StatCard label="Pools" value={String(m.pools)} />
+        <StatCard label="Pools" value={formatAmount(m.pools)} />
         <StatCard label="Total liquidity" value={formatAmount(m.totalLiquidity)} />
         <StatCard
           label="Settlements"
-          value={String(m.settlements)}
+          value={formatAmount(m.settlements)}
           hint={`${m.pendingSettlements} pending`}
         />
       </div>

@@ -9,7 +9,7 @@ Web app for **AnchorNet** — the liquidity coordination network for Stellar anc
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (matches CI; see `.nvmrc`)
 - npm (or yarn/pnpm)
 
 ## Setup
@@ -18,6 +18,10 @@ Web app for **AnchorNet** — the liquidity coordination network for Stellar anc
 # Clone the repo (or use your fork)
 git clone <repo-url>
 cd anchornet-frontend
+
+# (Optional) switch to the project's Node version automatically
+# with nvm, fnm, or Volta — all read .nvmrc
+nvm use   # or: fnm use
 
 # Install dependencies
 npm install

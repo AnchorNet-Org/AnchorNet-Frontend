@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useRef, useState, useEffect } from "react";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm " +
@@ -8,6 +8,7 @@ const inputClass =
 const invalidInputClass =
   "w-full rounded-lg border border-red-500/60 bg-zinc-950 px-3 py-2 text-sm " +
   "text-zinc-100 outline-none focus:border-red-500";
+const ASSET_DATALIST_ID = "settlement-form-asset-list";
 
 interface FormErrors {
   anchor?: string;
@@ -44,32 +45,49 @@ export function SettlementForm({
   onSubmit,
   pending,
   availableLiquidity,
+  serverError,
 }: {
-  onSubmit: (input: { anchor: string; asset: string; amount: number }) => void;
+  onSubmit: (input: {
+    anchor: string;
+    asset: string;
+    amount: number;
+  }) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
   availableLiquidity?: Record<string, number>;
+  serverError?: string;
 }) {
   const [anchor, setAnchor] = useState("");
   const [asset, setAsset] = useState("USDC");
   const [amount, setAmount] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
+  useEffect(() => {
+    if (serverError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setErrors((prev) => ({ ...prev, amount: serverError }));
+    }
+  }, [serverError]);
+
   const anchorRef = useRef<HTMLInputElement>(null);
+  const assetOptions = Object.keys(availableLiquidity ?? {});
+  const assetListId = assetOptions.length > 0 ? ASSET_DATALIST_ID : undefined;
   const anchorErrorId = "settlement-anchor-error";
   const assetErrorId = "settlement-asset-error";
   const amountErrorId = "settlement-amount-error";
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     const nextErrors = validate(anchor, asset, amount, availableLiquidity);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    onSubmit({
+    const result = await onSubmit({
       anchor: anchor.trim(),
-      asset: asset.trim(),
+      asset: asset.trim().toUpperCase(),
       amount: Number(amount),
     });
+    if (result === false) return;
+
     setAmount("");
     setErrors({});
   }
@@ -113,10 +131,18 @@ export function SettlementForm({
             if (errors.asset) setErrors((prev) => ({ ...prev, asset: undefined }));
           }}
           placeholder="Asset"
+          list={assetListId}
           aria-invalid={Boolean(errors.asset)}
           aria-describedby={errors.asset ? assetErrorId : undefined}
           className={errors.asset ? invalidInputClass : inputClass}
         />
+        {assetOptions.length > 0 ? (
+          <datalist id={ASSET_DATALIST_ID}>
+            {assetOptions.map((assetOption) => (
+              <option key={assetOption} value={assetOption} />
+            ))}
+          </datalist>
+        ) : null}
         {errors.asset ? (
           <p id={assetErrorId} className="mt-1 text-xs text-red-400">
             {errors.asset}
@@ -161,4 +187,4 @@ export function SettlementForm({
       </div>
     </form>
   );
-      }
+}

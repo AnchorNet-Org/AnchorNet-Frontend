@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 import { AnchorDetail } from "@/components/AnchorDetail";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { fetchAnchor } from "@/lib/anchorsApi";
@@ -30,14 +30,12 @@ export default async function AnchorDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-4xl px-6 py-12">
+    <PageShell>
         <Breadcrumb
           items={[
             { label: "Dashboard", href: "/dashboard" },
             { label: "Anchors", href: "/anchors" },
-            { label: id },
+            { label: decodedId },
           ]}
         />
         <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
@@ -49,7 +47,6 @@ export default async function AnchorDetailPage({
         <div className="mt-8">
           <AnchorDetail id={decodedId} initialData={anchor} />
         </div>
-      </main>
-    </div>
+    </PageShell>
   );
 }
