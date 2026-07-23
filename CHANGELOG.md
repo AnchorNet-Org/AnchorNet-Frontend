@@ -2,6 +2,13 @@
 
 All notable changes to the AnchorNet web app are documented here.
 
+**Format:** each release is a `## [x.y.z]` heading. Under it, group entries
+by `### Added`, `### Changed`, `### Fixed`, or `### Testing` (only include
+the sections you actually have entries for). Lead each bullet with a bold
+area tag — e.g. `**UX:**`, `**Accessibility:**`, `**App:**` — naming the
+part of the app it touches. If your PR doesn't change user-facing behavior
+(docs-only, test-only, internal tooling), it doesn't need an entry.
+
 ## [0.9.0]
 
 ### Added
