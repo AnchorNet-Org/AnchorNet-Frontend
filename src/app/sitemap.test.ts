@@ -75,6 +75,32 @@ describe('sitemap.ts metadata route', () => {
     expect(result[1].url).toBe('https://anchornet.example.com/dashboard');
   });
 
+  it('warns when NEXT_PUBLIC_SITE_URL is missing in production', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+
+    const result = await sitemap();
+
+    expect(result[0].url).toBe('http://localhost:3000');
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[sitemap] NEXT_PUBLIC_SITE_URL is not set in production; falling back to http://localhost:3000.',
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn when NEXT_PUBLIC_SITE_URL is missing in development', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+
+    const result = await sitemap();
+
+    expect(result[0].url).toBe('http://localhost:3000');
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   // ── anchor detail entries ────────────────────────────────────────────
 
   it('includes one entry per anchor detail page', async () => {
