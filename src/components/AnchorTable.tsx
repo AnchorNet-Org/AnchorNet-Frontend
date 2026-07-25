@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { Anchor } from "@/lib/types";
 import { formatDate } from "@/lib/format";
-import { useSortableData } from "@/hooks/useSortableData";
+import { useSortableData, SortState } from "@/hooks/useSortableData";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
 import { SortAnnouncer } from "./SortAnnouncer";
 
-type SortKey = "name" | "registeredAt" | "active";
+export type SortKey = "name" | "registeredAt" | "active";
 
 function getSortValue(anchor: Anchor, key: SortKey): string | number {
   if (key === "active") return anchor.active ? 1 : 0;
@@ -20,16 +21,32 @@ export function AnchorTable({
   anchors,
   onDeregister,
   deregisteringIds,
+  initialSort,
+  onSortChange,
 }: {
   anchors: Anchor[];
   onDeregister?: (id: string) => void;
   /** Ids of anchors with a deactivation currently in flight. */
   deregisteringIds?: Set<string>;
+  /** Hydrate the sort state from the URL on first render. */
+  initialSort?: SortState<SortKey> | null;
+  /** Called when the user clicks a column header to cycle the sort. */
+  onSortChange?: (sort: SortState<SortKey> | null) => void;
 }) {
   const { sorted, sort, requestSort } = useSortableData<Anchor, SortKey>(
     anchors,
     getSortValue,
+    initialSort ?? null,
   );
+
+  // Sync sort changes back to the parent (URL querystring).
+  const prevSortRef = useRef(sort);
+  useEffect(() => {
+    if (onSortChange && prevSortRef.current !== sort) {
+      onSortChange(sort);
+    }
+    prevSortRef.current = sort;
+  }, [sort, onSortChange]);
 
   if (anchors.length === 0) {
     return <EmptyState message="No anchors registered yet." />;
