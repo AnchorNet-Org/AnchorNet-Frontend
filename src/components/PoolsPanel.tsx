@@ -18,17 +18,6 @@ import { EmptyState } from "./EmptyState";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
-interface PoolsPanelProps {
-  /** Optional pre-fetched pools data. If provided, the component skips its own fetch. */
-  pools?: Pool[];
-  /** Optional loading state when pools are provided externally. */
-  isLoading?: boolean;
-  /** Optional error message when pools are provided externally. */
-  error?: string;
-  /** Optional reload callback when pools are provided externally. */
-  onReload?: () => void;
-}
-
 /** Client panel that loads liquidity pools and renders summary stats. */
 export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }: PoolsPanelProps = {}) {
   const load = useCallback((signal: AbortSignal) => fetchPools(signal), []);
@@ -82,6 +71,12 @@ export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }:
       </Card>
     );
   }
+
+  const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
+  const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
+  const filteredPools = state.data.filter((pool) =>
+    matchesQuery([pool.asset], debouncedQuery),
+  );
 
   return (
     <div className="space-y-6">

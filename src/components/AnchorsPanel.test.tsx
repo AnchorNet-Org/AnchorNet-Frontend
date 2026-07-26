@@ -76,6 +76,17 @@ describe("AnchorsPanel", () => {
     expect(screen.queryByText("Anchor B")).not.toBeInTheDocument();
   });
 
+  it("exposes the filter and search toolbar as a labelled search landmark", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    expect(screen.getByRole("search", { name: /anchors/i })).toBeInTheDocument();
+  });
+
   it("focuses the search box when / is pressed", async () => {
     vi.mocked(fetchAnchors).mockResolvedValue([
       { id: "a", name: "Anchor A", registeredAt: "", active: true },

@@ -195,7 +195,11 @@ export function AnchorsPanel() {
         ) : (
           <>
             {state.data.length > 0 ? (
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div
+                role="search"
+                aria-label="Anchors search and filters"
+                className="mb-3 flex flex-wrap items-center gap-2"
+              >
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
