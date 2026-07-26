@@ -30,7 +30,7 @@ export function SettlementTable({
   onCancel?: (id: number) => void;
   pendingIds?: Set<number>;
 }) {
-  const { sorted, sort, requestSort } = useSortableData<Settlement, SortKey>(
+  const { sorted, sort, requestSort, clearSort } = useSortableData<Settlement, SortKey>(
     settlements,
     getSortValue,
   );
@@ -68,6 +68,7 @@ export function SettlementTable({
               sortKey="anchor"
               sort={sort}
               onSort={requestSort}
+              onClearSort={clearSort}
             />
             <th className="py-2 font-medium">Asset</th>
             <SortableHeader
@@ -75,6 +76,7 @@ export function SettlementTable({
               sortKey="amount"
               sort={sort}
               onSort={requestSort}
+              onClearSort={clearSort}
             />
             <th className="py-2 font-medium">Fee</th>
             <SortableHeader
@@ -82,6 +84,7 @@ export function SettlementTable({
               sortKey="status"
               sort={sort}
               onSort={requestSort}
+              onClearSort={clearSort}
             />
             {actionable ? <th className="py-2" /> : null}
           </tr>

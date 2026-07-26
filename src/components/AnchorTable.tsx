@@ -33,7 +33,7 @@ export function AnchorTable({
   /** Called when the user clicks a column header to cycle the sort. */
   onSortChange?: (sort: SortState<SortKey> | null) => void;
 }) {
-  const { sorted, sort, requestSort } = useSortableData<Anchor, SortKey>(
+  const { sorted, sort, requestSort, clearSort } = useSortableData<Anchor, SortKey>(
     anchors,
     getSortValue,
     initialSort ?? null,
@@ -70,18 +70,21 @@ export function AnchorTable({
             sortKey="name"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Registered"
             sortKey="registeredAt"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Status"
             sortKey="active"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           {onDeregister ? <th className="py-2" /> : null}
         </tr>
