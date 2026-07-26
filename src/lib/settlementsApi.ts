@@ -2,7 +2,7 @@
  * API client for settlement endpoints.
  */
 
-import { apiRequest, buildQueryParams } from "./api";
+import { apiRequest, apiTextRequest, buildQueryParams } from "./api";
 import { Settlement, SettlementsPage } from "./types";
 
 /** Options for {@link fetchSettlements}. */

@@ -14,6 +14,7 @@ import {
   registerAnchor,
   deregisterAnchor,
 } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mock next/navigation so the panel can run in jsdom.
@@ -254,7 +255,9 @@ describe("AnchorsPanel", () => {
 
   it("surfaces a field-level error on failed registration and does not clear the form", async () => {
     vi.mocked(fetchAnchors).mockResolvedValue([]);
-    vi.mocked(registerAnchor).mockRejectedValue(new Error("Duplicate anchor id"));
+    vi.mocked(registerAnchor).mockRejectedValue(
+      new ApiRequestError(409, "CONFLICT", "Duplicate anchor id"),
+    );
 
     renderPanel();
     await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
@@ -269,8 +272,55 @@ describe("AnchorsPanel", () => {
         name: undefined,
       });
       expect(idInput).toHaveValue("existing-anchor");
-      expect(screen.getByText("Duplicate anchor id")).toBeInTheDocument();
     });
+
+    // Inline error should be inside the form and toast should also appear.
+    const form = idInput.closest("form");
+    expect(form).not.toBeNull();
+    await waitFor(() => {
+      expect(
+        within(form as HTMLFormElement).getByText("Duplicate anchor id"),
+      ).toBeInTheDocument();
+    });
+    expect(idInput).toHaveAttribute("aria-invalid", "true");
+    // Toast also contains the message; there should be at least 2 occurrences
+    // (inline + toast) in the whole document.
+    expect(screen.getAllByText(/duplicate anchor id/i).length).toBeGreaterThanOrEqual(
+      2,
+    );
+  });
+
+  it("does not mark id field invalid on generic registration failure but shows toast", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+    vi.mocked(registerAnchor).mockRejectedValue(new Error("Network error"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "new-anchor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() => {
+      expect(registerAnchor).toHaveBeenCalledWith({
+        id: "new-anchor",
+        name: undefined,
+      });
+    });
+
+    // Toast notification must still fire for generic failures.
+    expect(await screen.findByText("Network error")).toBeInTheDocument();
+
+    // Generic failure should NOT mark id field as invalid and should NOT show
+    // an inline error inside the form.
+    expect(idInput).toHaveAttribute("aria-invalid", "false");
+    const form = idInput.closest("form");
+    expect(form).not.toBeNull();
+    // Inline error lives inside the form; toast lives outside, so searching
+    // within the form must not find the message.
+    expect(
+      within(form as HTMLFormElement).queryByText("Network error"),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms before deactivating an anchor", async () => {

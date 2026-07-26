@@ -148,7 +148,7 @@ export function setDefaultTimeout(ms: number) {
 
 function composeSignals(
   timeoutMs: number,
-  callerSignal?: AbortSignal,
+  callerSignal?: AbortSignal | null,
 ): { signal: AbortSignal; cleanup: () => void; hasTimedOut: () => boolean } {
   const controller = new AbortController();
   let timedOut = false;

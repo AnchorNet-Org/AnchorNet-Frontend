@@ -8,10 +8,12 @@ import {
 } from "@/lib/anchorsApi";
 import { Anchor } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
+import { ApiRequestError } from "@/lib/api";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
@@ -78,6 +80,30 @@ export function AnchorsPanel() {
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
+  // One ref per filter button for imperative focus management (roving tabindex).
+  const filterRefs = useRef<Array<HTMLButtonElement | null>>(
+    Array(FILTERS.length).fill(null),
+  );
+
+  /** Arrow-key / Home / End roving focus across the filter button group. */
+  function onFilterKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    const last = FILTERS.length - 1;
+    let next: number | null = null;
+
+    if (event.key === "ArrowRight") next = index === last ? 0 : index + 1;
+    else if (event.key === "ArrowLeft") next = index === 0 ? last : index - 1;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = last;
+
+    if (next !== null) {
+      event.preventDefault();
+      filterRefs.current[next]?.focus();
+    }
+  }
+
   // Sync status filter and search query to the URL querystring.
   // Initial values are hydrated from the URL on first render.
   const [rawStatus, setStatus] = useQueryState("status", "all");
@@ -93,24 +119,9 @@ export function AnchorsPanel() {
 
   const [query, setQuery] = useQueryState("q", "");
 
-  // Sync sort column and direction to the URL querystring.
-  const [rawSort, setSortParam] = useQueryState("sort", "");
-  const [rawDir, setDirParam] = useQueryState("dir", "");
-
-  const isValidSortKey = (v: string): v is SortKey => VALID_SORT_KEYS.has(v);
-  const isValidDir = (v: string): v is SortDirection =>
-    VALID_SORT_DIRECTIONS.has(v);
-
-  const initialSort: SortState<SortKey> | null =
-    isValidSortKey(rawSort) && isValidDir(rawDir)
-      ? { key: rawSort, direction: rawDir }
-      : null;
-
-  // Correct invalid sort/dir params in the URL to the clean (unsorted) state.
-  useEffect(() => {
-    if (rawSort !== "" && !isValidSortKey(rawSort)) setSortParam("");
-    if (rawDir !== "" && !isValidDir(rawDir)) setDirParam("");
-  }, [rawSort, rawDir, setSortParam, setDirParam]);
+  // Debounce only the value that drives filtering so large anchor lists aren't
+  // re-filtered on every keystroke; the input stays bound to `query` above.
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
 
   const filteredAnchors =
     state.status === "ready"
@@ -130,7 +141,14 @@ export function AnchorsPanel() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       notify("error", message);
-      setServerError(message);
+      // Only surface id-specific failures (e.g. duplicate/conflict) inline on the
+      // AnchorForm id field. Generic failures (network, 5xx, etc.) stay as toasts.
+      if (
+        err instanceof ApiRequestError &&
+        (err.status === 409 || err.code === "CONFLICT")
+      ) {
+        setServerError(message);
+      }
       return false;
     } finally {
       setPending(false);
@@ -181,7 +199,9 @@ export function AnchorsPanel() {
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
+                    ref={(el) => { filterRefs.current[i] = el; }}
                     onClick={() => setStatus(f.value)}
+                    onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
                     tabIndex={filter === f.value ? 0 : -1}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
