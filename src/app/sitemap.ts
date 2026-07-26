@@ -4,7 +4,13 @@ import { fetchSettlements } from '@/lib/settlementsApi';
 import { Settlement } from '@/lib/types';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!configuredSiteUrl && process.env.NODE_ENV === 'production') {
+    console.warn(
+      '[sitemap] NEXT_PUBLIC_SITE_URL is not set in production; falling back to http://localhost:3000.',
+    );
+  }
+  const baseUrl = configuredSiteUrl || 'http://localhost:3000';
 
   const routes = ['', '/dashboard', '/anchors', '/settlements'].map((route) => ({
     url: `${baseUrl}${route}`,
