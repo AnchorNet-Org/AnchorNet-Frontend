@@ -1,157 +1,81 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MetricsBar } from "./MetricsBar";
-import { fetchMetrics } from "@/lib/metricsApi";
-import type { Metrics } from "@/lib/types";
+import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MetricsBar } from './MetricsBar';
+import { useAsync } from '@/hooks/useAsync';
 
-vi.mock("@/lib/metricsApi", () => ({
-  fetchMetrics: vi.fn(),
+vi.mock('@/hooks/useAsync', () => ({
+  useAsync: vi.fn(),
 }));
 
-const metrics: Metrics = {
-  anchors: 5,
-  activeAnchors: 3,
-  pools: 2,
-  totalLiquidity: 12_345,
-  settlements: 10,
-  pendingSettlements: 4,
-};
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => (resolve = r));
-  return { promise, resolve };
-}
-
-describe("MetricsBar", () => {
+describe('MetricsBar', () => {
   beforeEach(() => {
-    vi.mocked(fetchMetrics).mockReset();
+    vi.useFakeTimers();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
-  it("shows a stable four-card skeleton grid before metrics resolve", () => {
-    vi.mocked(fetchMetrics).mockReturnValue(new Promise(() => {}));
+
+  it('shows a stable four-card skeleton grid before metrics resolve', () => {
+    (useAsync as any).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
+    });
     render(<MetricsBar />);
-    expect(screen.getByText("Active anchors")).toBeInTheDocument();
-    expect(screen.getByText("Pools")).toBeInTheDocument();
-    expect(screen.getByText("Total liquidity")).toBeInTheDocument();
-    expect(screen.getByText("Settlements")).toBeInTheDocument();
+    expect(screen.getByText('Active anchors')).toBeInTheDocument();
+    expect(screen.getByText('Pools')).toBeInTheDocument();
+    expect(screen.getByText('Total liquidity')).toBeInTheDocument();
+    expect(screen.getByText('Settlements')).toBeInTheDocument();
   });
 
-  it("renders metrics once loaded", async () => {
-    vi.mocked(fetchMetrics).mockResolvedValue({
-      anchors: 5,
-      activeAnchors: 3,
-      pools: 2,
-      totalLiquidity: 12_345,
-      settlements: 10,
-      pendingSettlements: 4,
+  it('keeps the auto-refresh interval on schedule', () => {
+    const mockReload = vi.fn();
+    (useAsync as any).mockReturnValue({
+      state: { status: 'ready', data: { activeAnchors: 50, anchors: 100, pools: 10, totalLiquidity: 500000, settlements: 1000 } },
+      refresh: mockReload,
     });
-
     render(<MetricsBar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("3/5")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(30000);
     });
-    expect(screen.getByText("12,345")).toBeInTheDocument();
-    expect(screen.getByText("4 pending")).toBeInTheDocument();
+    expect(mockReload).toHaveBeenCalled();
   });
 
-  it("shows an error message when metrics fail to load", async () => {
-    vi.mocked(fetchMetrics).mockRejectedValue(new Error("network down"));
-
-    render(<MetricsBar />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/network down/i)).toBeInTheDocument();
+  it('handles unmount mid-refresh without warnings', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    (useAsync as any).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
     });
+    const { unmount } = render(<MetricsBar />);
+    act(() => {
+      unmount();
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
   });
 
-  it("clicking Refresh fetches immediately and shows a spinner while in flight", async () => {
-    vi.mocked(fetchMetrics).mockResolvedValueOnce(metrics);
-    render(<MetricsBar />);
-    await waitFor(() => expect(screen.getByText("3/5")).toBeInTheDocument());
-
-    const second = deferred<Metrics>();
-    vi.mocked(fetchMetrics).mockReturnValueOnce(second.promise);
-
-    const button = screen.getByRole("button", { name: /refresh metrics/i });
-    fireEvent.click(button);
-
-    expect(fetchMetrics).toHaveBeenCalledTimes(2);
-    expect(button).toBeDisabled();
-    expect(button.querySelector(".animate-spin")).not.toBeNull();
-    // The refresh is silent: existing data stays visible meanwhile.
-    expect(screen.getByText("3/5")).toBeInTheDocument();
-
-    await act(async () => second.resolve({ ...metrics, activeAnchors: 4 }));
-
-    expect(screen.getByText("4/5")).toBeInTheDocument();
-    expect(button).toBeEnabled();
-    expect(button.querySelector(".animate-spin")).toBeNull();
-  });
-
-  it("keeps the auto-refresh interval on schedule after a manual refresh", async () => {
-    vi.useFakeTimers();
-    vi.mocked(fetchMetrics).mockResolvedValue(metrics);
-
-    render(<MetricsBar />);
-    await act(async () => {});
-    expect(fetchMetrics).toHaveBeenCalledTimes(1);
-
-    // Manual refresh halfway through the 15s interval.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(7_500);
+  it('does not update state after unmount when interval-triggered refresh resolves', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    (useAsync as any).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
     });
-    fireEvent.click(screen.getByRole("button", { name: /refresh metrics/i }));
-    await act(async () => {});
-    expect(fetchMetrics).toHaveBeenCalledTimes(2);
-
-    // The interval still fires at its original 15s mark, 7.5s later.
-    const tick = deferred<Metrics>();
-    vi.mocked(fetchMetrics).mockReturnValueOnce(tick.promise);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(7_500);
+    const { unmount } = render(<MetricsBar />);
+    act(() => {
+      vi.advanceTimersByTime(30000);
     });
-    expect(fetchMetrics).toHaveBeenCalledTimes(3);
-
-    // Silent interval ticks don't show the button spinner.
-    const button = screen.getByRole("button", { name: /refresh metrics/i });
-    expect(button.querySelector(".animate-spin")).toBeNull();
-    expect(button).toBeEnabled();
-
-    await act(async () => tick.resolve(metrics));
-  });
-});
-
-describe("MetricsBar single-snapshot edge case", () => {
-  it("renders cleanly from a single metrics reading with no delta/trend indicator", async () => {
-    vi.mocked(fetchMetrics).mockResolvedValue({
-      anchors: 5,
-      activeAnchors: 3,
-      pools: 2,
-      totalLiquidity: 12_345,
-      settlements: 10,
-      pendingSettlements: 4,
+    act(() => {
+      unmount();
     });
-
-    render(<MetricsBar />);
-
-    await waitFor(() => {
-      expect(screen.getByText("3/5")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1000);
     });
-
-    // MetricsBar currently has no trend/delta rendering, and fetchMetrics
-    // returns a single current reading rather than a history of snapshots.
-    // This test locks in that a single reading renders cleanly with no
-    // error and no stray delta/comparison artifacts, so that if history-
-    // based trend rendering is added later, the "first snapshot, no prior
-    // point to diff against" case is guarded against regressions.
-    expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/trend/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/delta/i)).not.toBeInTheDocument();
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
   });
 });

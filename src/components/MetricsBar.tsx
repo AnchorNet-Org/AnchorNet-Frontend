@@ -65,13 +65,13 @@ export function MetricsBar() {
       <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="Active anchors"
-          value={`${m.activeAnchors}/${m.anchors}`}
+          value={`${formatAmount(m.activeAnchors)}/${formatAmount(m.anchors)}`}
         />
-        <StatCard label="Pools" value={String(m.pools)} />
+        <StatCard label="Pools" value={formatAmount(m.pools)} />
         <StatCard label="Total liquidity" value={formatAmount(m.totalLiquidity)} />
         <StatCard
           label="Settlements"
-          value={String(m.settlements)}
+          value={formatAmount(m.settlements)}
           hint={`${m.pendingSettlements} pending`}
         />
       </div>

@@ -5,6 +5,7 @@ import { formatAmount, pluralize } from "@/lib/format";
 import { useSortableData } from "@/hooks/useSortableData";
 import { EmptyState } from "./EmptyState";
 import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
 type SortKey = "asset" | "total" | "anchors";
 
@@ -14,7 +15,7 @@ function getSortValue(pool: Pool, key: SortKey): string | number {
 
 /** Renders aggregated liquidity pools as a sortable table. */
 export function PoolTable({ pools }: { pools: Pool[] }) {
-  const { sorted, sort, requestSort } = useSortableData<Pool, SortKey>(
+  const { sorted, sort, requestSort, clearSort } = useSortableData<Pool, SortKey>(
     pools,
     getSortValue,
   );
@@ -26,7 +27,16 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
   }
 
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          asset: "Asset",
+          total: "Total liquidity",
+          anchors: "Anchors",
+        }}
+      />
+      <table className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-zinc-800 text-zinc-400">
           <SortableHeader
@@ -34,18 +44,21 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
             sortKey="asset"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Total liquidity"
             sortKey="total"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Anchors"
             sortKey="anchors"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
         </tr>
       </thead>
@@ -75,5 +88,7 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
         </tr>
       </tfoot>
     </table>
+    </>
   );
 }
+

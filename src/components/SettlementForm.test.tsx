@@ -86,6 +86,17 @@ describe("SettlementForm", () => {
     });
   });
 
+  it("disables Reset while pending and re-enables it afterward", () => {
+    const { rerender } = render(<SettlementForm onSubmit={() => {}} pending />);
+    const resetButton = screen.getByText("Reset");
+
+    expect(resetButton).toBeDisabled();
+
+    rerender(<SettlementForm onSubmit={() => {}} pending={false} />);
+
+    expect(resetButton).toBeEnabled();
+  });
+
   it("clears all field values, errors, and focuses the anchor field after reset", () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} />);
@@ -145,6 +156,36 @@ describe("SettlementForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("renders asset suggestions from availableLiquidity", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SettlementForm
+        onSubmit={onSubmit}
+        availableLiquidity={{ USDC: 1000, BTC: 500, EURT: 250 }}
+      />,
+    );
+
+    const input = screen.getByPlaceholderText("Asset");
+    expect(input).toHaveAttribute("list", "settlement-form-asset-list");
+    const datalist = document.getElementById("settlement-form-asset-list");
+    expect(datalist).toBeInTheDocument();
+    expect(datalist?.querySelectorAll("option")).toHaveLength(3);
+    expect(Array.from(datalist?.querySelectorAll("option") ?? []).map((option) => option.value)).toEqual([
+      "USDC",
+      "BTC",
+      "EURT",
+    ]);
+  });
+
+  it("does not render a datalist when availableLiquidity is absent", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} />);
+
+    const input = screen.getByPlaceholderText("Asset");
+    expect(input).not.toHaveAttribute("list");
+    expect(document.getElementById("settlement-form-asset-list")).not.toBeInTheDocument();
+  });
+
   it("rejects amount exceeding available liquidity", () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} availableLiquidity={{ USDC: 100 }} />);
@@ -186,5 +227,16 @@ describe("SettlementForm", () => {
         amount: 100,
       });
     });
+  });
+
+  it("shows pending-state text and reverts when pending changes", () => {
+    const { rerender } = render(<SettlementForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Open settlement")).toBeInTheDocument();
+    rerender(<SettlementForm onSubmit={() => {}} pending />);
+    expect(screen.getByText("Opening…")).toBeInTheDocument();
+    expect(screen.getByText("Opening…")).toBeDisabled();
+    rerender(<SettlementForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Open settlement")).toBeInTheDocument();
+    expect(screen.getByText("Open settlement")).not.toBeDisabled();
   });
 });

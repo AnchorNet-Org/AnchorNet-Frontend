@@ -43,6 +43,16 @@ describe("ConnectButton", () => {
     expect(screen.getByTitle("Disconnect").textContent).toMatch(/…/);
   });
 
+  it("exposes the full wallet address in aria-label when connected", async () => {
+    await connectWallet();
+    // The button's accessible name must contain the full Stellar address
+    // (56-character G... key) so assistive technology and automated tests
+    // can discover it without relying on the truncated visible text.
+    const btn = screen.getByTitle("Disconnect");
+    const ariaLabel = btn.getAttribute("aria-label") ?? "";
+    expect(ariaLabel).toMatch(/^Disconnect \u2013 G[A-Z0-9]{55}$/);
+  });
+
   // -------------------------------------------------------------------------
   // Disconnect confirmation flow
   // -------------------------------------------------------------------------

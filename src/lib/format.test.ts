@@ -4,7 +4,7 @@ import {
   pluralize,
   feeInBps,
   formatStatus,
-  formatDate,
+  formatDate, formatPercent,
 } from "./format";
 
 describe("formatAmount", () => {
@@ -66,5 +66,16 @@ describe("formatDate", () => {
     // 16th, which is what the old UTC-based implementation returned.
     const iso = "2026-01-15T23:30:00-08:00";
     expect(formatDate(iso)).toBe("2026-01-15");
+  });
+});
+
+describe("formatPercent", () => {
+  it("formats with default 1 decimal place", () => {
+    expect(formatPercent(75)).toBe("75.0%");
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+  it("allows custom digits", () => {
+    expect(formatPercent(75, 2)).toBe("75.00%");
+    expect(formatPercent(75.123, 3)).toBe("75.123%");
   });
 });

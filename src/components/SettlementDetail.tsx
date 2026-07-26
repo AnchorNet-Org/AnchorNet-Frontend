@@ -7,6 +7,7 @@ import {
   executeSettlement,
   cancelSettlement,
 } from "@/lib/settlementsApi";
+import { ApiRequestError } from "@/lib/api";
 import { Settlement } from "@/lib/types";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
@@ -35,14 +36,18 @@ export function SettlementDetail({
   );
   const { notify } = useToast();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [pending, setPending] = useState(false);
 
   async function run(action: () => Promise<unknown>, successMessage: string) {
     try {
+      setPending(true);
       await action();
       notify("success", successMessage);
       await refresh();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -57,9 +62,17 @@ export function SettlementDetail({
       <Card>
         {state.status === "loading" ? (
           <Spinner label="Loading settlement…" />
-        ) : state.status === "error" ? (
-          <p className="text-sm text-red-400">{state.message}</p>
-        ) : (
+          ) : state.status === "error" ? (
+            <>
+              {state.error instanceof ApiRequestError && state.error.status === 404 ? (
+                <p className="text-sm text-red-400">
+                  Settlement not found. <Link href="/settlements" className="underline">Back to settlements</Link>
+                </p>
+              ) : (
+                <p className="text-sm text-red-400">{state.message}</p>
+              )}
+            </>
+          ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">
@@ -103,12 +116,14 @@ export function SettlementDetail({
                       `Executed settlement #${state.data.id}.`,
                     )
                   }
+                  disabled={pending}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-emerald-400 hover:text-emerald-300"
                 >
                   Execute
                 </button>
                 <button
                   onClick={() => setConfirmCancelOpen(true)}
+                  disabled={pending}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-red-400 hover:text-red-300"
                 >
                   Cancel

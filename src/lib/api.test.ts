@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { fetchPools, requestQuote, apiRequest, apiTextRequest, ApiRequestError, isAbortError, retryDelayMs } from "./api";
+import {
+  fetchPools,
+  requestQuote,
+  apiRequest,
+  apiTextRequest,
+  ApiRequestError,
+  isAbortError,
+  retryDelayMs,
+  buildQueryParams,
+} from "./api";
 
 function mockFetch(
   status: number,
@@ -104,6 +113,33 @@ describe("apiRequest", () => {
     const err = (await apiRequest("/x").catch((e) => e)) as { requestId?: string };
     expect(err.requestId).toBeUndefined();
   });
+
+  it("throws a descriptive ApiRequestError when a successful JSON response is malformed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: { get: () => null },
+        json: async () => {
+          throw new SyntaxError("Unexpected end of JSON input");
+        },
+        text: async () => "",
+      }),
+    );
+
+    const err = await apiRequest("/x").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect(err).not.toBeInstanceOf(SyntaxError);
+    expect(err).toMatchObject({
+      name: "ApiRequestError",
+      status: 200,
+      code: "INVALID_RESPONSE",
+      message: "The server returned an invalid response.",
+    });
+  });
 });
 
 describe("fetchPools", () => {
@@ -160,6 +196,75 @@ describe("requestQuote", () => {
   });
 });
 
+describe("buildQueryParams", () => {
+  it("returns an empty string for an empty params object", () => {
+    expect(buildQueryParams({})).toBe("");
+  });
+
+  it("returns an empty string when all values are undefined", () => {
+    expect(buildQueryParams({ a: undefined, b: undefined })).toBe("");
+  });
+
+  it("builds a single query parameter", () => {
+    expect(buildQueryParams({ anchor: "a" })).toBe("?anchor=a");
+  });
+
+  it("builds multiple query parameters", () => {
+    expect(buildQueryParams({ anchor: "a", page: 1, pageSize: 20 })).toBe(
+      "?anchor=a&page=1&pageSize=20",
+    );
+  });
+
+  it("skips undefined values while including defined ones", () => {
+    expect(
+      buildQueryParams({ anchor: "a", page: undefined, pageSize: 20 }),
+    ).toBe("?anchor=a&pageSize=20");
+  });
+
+  it("converts number values to strings", () => {
+    const result = buildQueryParams({ page: 5 });
+    expect(result).toBe("?page=5");
+  });
+
+  it("handles string values that need encoding", () => {
+    expect(buildQueryParams({ name: "hello world" })).toBe("?name=hello+world");
+  });
+
+  it("preserves order of insertion", () => {
+    const result = buildQueryParams({ a: "1", b: "2", c: "3" });
+    expect(result).toBe("?a=1&b=2&c=3");
+  });
+
+  it("works with the same shape as FetchSettlementsOptions", () => {
+    const options: Record<string, string | number | undefined> = {
+      anchor: "test-anchor",
+      page: 2,
+      pageSize: 10,
+    };
+    expect(buildQueryParams(options)).toBe(
+      "?anchor=test-anchor&page=2&pageSize=10",
+    );
+  });
+
+  it("matches the behaviour of the original inline URLSearchParams logic", () => {
+    // This test replicates the pattern from the original fetchSettlements
+    // to confirm the extracted helper produces identical output.
+    const { anchor, page, pageSize } = { anchor: "a", page: 1, pageSize: 20 };
+    const query = buildQueryParams({ anchor, page, pageSize });
+    expect(query).toBe("?anchor=a&page=1&pageSize=20");
+  });
+
+  it("matches empty-options behaviour of the original logic", () => {
+    const { anchor, page, pageSize } = {
+      anchor: undefined,
+      page: undefined,
+      pageSize: undefined,
+    } as Record<string, undefined>;
+    const query = buildQueryParams({ anchor, page, pageSize });
+    expect(query).toBe("");
+  });
+});
+
 describe("isAbortError", () => {
   it("returns true for a DOMException with name AbortError", () => {
     expect(isAbortError(new DOMException("aborted", "AbortError"))).toBe(true);
@@ -204,6 +309,76 @@ describe("apiRequest — abort behaviour", () => {
     );
 
     await expect(apiRequest("/x")).rejects.toBeInstanceOf(ApiRequestError);
+  });
+
+  it("aborts the request with a TIMEOUT error when internal timeout is reached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const promise = apiRequest("/x", { timeout: 1000 }).catch((e: unknown) => e);
+    
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const err = await promise;
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).code).toBe("TIMEOUT");
+    expect((err as ApiRequestError).status).toBe(408);
+  });
+
+  it("allows the caller's AbortSignal to cancel the request before the timeout is reached", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const controller = new AbortController();
+    const promise = apiRequest("/x", { signal: controller.signal, timeout: 5000 }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.abort();
+
+    const err = await promise;
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("aborts the request with a TIMEOUT error even if a caller's AbortSignal is also provided but hasn't fired yet", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((url, init) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("The user aborted a request.", "AbortError"));
+        } else {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The user aborted a request.", "AbortError"));
+          });
+        }
+      });
+    }));
+
+    const controller = new AbortController();
+    const promise = apiRequest("/x", { signal: controller.signal, timeout: 2000 }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const err = await promise;
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).code).toBe("TIMEOUT");
+    expect(isAbortError(err)).toBe(false);
   });
 });
 

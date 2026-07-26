@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { PoolDistributionBar } from "./PoolDistributionBar";
 import { Pool } from "@/lib/types";
 
@@ -39,8 +39,52 @@ describe("PoolDistributionBar", () => {
 
   it("shows a percentage legend for each asset", () => {
     render(<PoolDistributionBar pools={pools} />);
-    expect(screen.getByText("USDC · 75.0%")).toBeInTheDocument();
-    expect(screen.getByText("XLM · 25.0%")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /USDC · 75.0%/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /XLM · 25.0%/i })).toBeInTheDocument();
+  });
+
+  it("makes legend entries keyboard-focusable buttons", () => {
+    render(<PoolDistributionBar pools={pools} />);
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toHaveTextContent("USDC · 75.0%");
+    expect(buttons[1]).toHaveTextContent("XLM · 25.0%");
+  });
+
+  it("applies the highlighted state to the corresponding segment when focused or hovered", () => {
+    const { container } = render(<PoolDistributionBar pools={pools} />);
+    const buttons = screen.getAllByRole("button");
+    const rects = container.querySelectorAll("rect");
+
+    // Initially, nothing should be highlighted (data-highlighted is false)
+    expect(rects[0]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[1]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[0].style.opacity).not.toBe("0.4");
+    expect(rects[1].style.opacity).not.toBe("0.4");
+
+    // Focus first legend entry
+    fireEvent.focus(buttons[0]);
+    expect(rects[0]).toHaveAttribute("data-highlighted", "true");
+    expect(rects[1]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[0].style.opacity).toBe("1");
+    expect(rects[1].style.opacity).toBe("0.4");
+
+    // Blur first legend entry
+    fireEvent.blur(buttons[0]);
+    expect(rects[0]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[1]).toHaveAttribute("data-highlighted", "false");
+
+    // Hover second legend entry
+    fireEvent.mouseEnter(buttons[1]);
+    expect(rects[0]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[1]).toHaveAttribute("data-highlighted", "true");
+    expect(rects[0].style.opacity).toBe("0.4");
+    expect(rects[1].style.opacity).toBe("1");
+
+    // Mouse leave second legend entry
+    fireEvent.mouseLeave(buttons[1]);
+    expect(rects[0]).toHaveAttribute("data-highlighted", "false");
+    expect(rects[1]).toHaveAttribute("data-highlighted", "false");
   });
 
   it("assigns distinct colors when there are more than 6 pools", () => {

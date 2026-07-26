@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { fetchPools } from "@/lib/api";
+import { Pool } from "@/lib/types";
 import { formatAmount } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useAsync } from "@/hooks/useAsync";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
@@ -14,15 +16,38 @@ import { PoolDistributionBar } from "./PoolDistributionBar";
 import { TableSkeleton } from "./TableSkeleton";
 import { EmptyState } from "./EmptyState";
 
+const SEARCH_DEBOUNCE_MS = 200;
+
 /** Client panel that loads liquidity pools and renders summary stats. */
-export function PoolsPanel() {
+export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }: PoolsPanelProps = {}) {
   const load = useCallback((signal: AbortSignal) => fetchPools(signal), []);
-  const { state, reload } = useAsync(load);
+  const initialState: { status: "ready"; data: Pool[] } | { status: "loading" } = 
+    externalPools !== undefined ? { status: "ready", data: externalPools } : { status: "loading" };
+  const { state, reload: internalReload } = useAsync<Pool[]>(
+    externalPools !== undefined ? undefined : load,
+    initialState
+  );
   const [query, setQuery] = useQueryState("q", "");
+  const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
-  if (state.status === "loading") {
+  // Use external data if provided, otherwise use internal fetch state
+  const pools = externalPools !== undefined ? externalPools : (state.status === "ready" ? state.data : []);
+  const loadingState = isLoading !== undefined ? isLoading : state.status === "loading";
+  const errorState = error !== undefined ? error : (state.status === "error" ? state.message : undefined);
+  const reload = onReload !== undefined ? onReload : internalReload;
+
+  // Hooks must run unconditionally on every render, so these are computed
+  // here (before the early loading/error returns below) rather than after.
+  const totalLiquidity = useMemo(() => pools.reduce((sum, p) => sum + p.total, 0), [pools]);
+  const positions = useMemo(() => pools.reduce((sum, p) => sum + p.anchors, 0), [pools]);
+  const filteredPools = useMemo(
+    () => pools.filter((pool) => matchesQuery([pool.asset], debouncedQuery)),
+    [pools, debouncedQuery],
+  );
+
+  if (loadingState) {
     return (
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">Pools</h2>
@@ -31,11 +56,11 @@ export function PoolsPanel() {
     );
   }
 
-  if (state.status === "error") {
+  if (errorState) {
     return (
       <Card>
         <p className="text-sm text-red-400">
-          Could not reach the API: {state.message}
+          Could not reach the API: {errorState}
         </p>
         <button
           onClick={reload}
@@ -50,31 +75,31 @@ export function PoolsPanel() {
   const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
   const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
   const filteredPools = state.data.filter((pool) =>
-    matchesQuery([pool.asset], query),
+    matchesQuery([pool.asset], debouncedQuery),
   );
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Assets" value={String(state.data.length)} />
+        <StatCard label="Assets" value={String(pools.length)} />
         <StatCard
           label="Total liquidity"
           value={formatAmount(totalLiquidity)}
         />
         <StatCard
           label="Anchor positions"
-          value={String(positions)}
+          value={formatAmount(positions)}
           hint="across all assets"
         />
       </div>
       <Card>
         <div className="mb-4">
-          <PoolDistributionBar pools={state.data} />
+          <PoolDistributionBar pools={pools} />
         </div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-200">Pools</h2>
           <div className="flex items-center gap-2">
-            {state.data.length > 0 && (
+            {pools.length > 0 && (
               <div
                 role="search"
                 aria-label="Pools search"
@@ -86,7 +111,7 @@ export function PoolsPanel() {
                   aria-label="Search pools"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search pools…"
+                  placeholder="Search pools… (/)"
                   className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
                 />
               </div>
@@ -99,7 +124,7 @@ export function PoolsPanel() {
             </button>
           </div>
         </div>
-        {filteredPools.length === 0 && state.data.length > 0 ? (
+        {filteredPools.length === 0 && pools.length > 0 ? (
           <EmptyState
             reason="no-results"
             message="No pools match your search."
