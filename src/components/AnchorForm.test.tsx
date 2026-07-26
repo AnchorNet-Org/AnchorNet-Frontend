@@ -50,7 +50,18 @@ describe("AnchorForm", () => {
 
   it("disables the submit button while pending", () => {
     render(<AnchorForm onSubmit={() => {}} pending />);
-    expect(screen.getByText("Register")).toBeDisabled();
+    expect(screen.getByText("Registering…")).toBeDisabled();
+  });
+
+  it("shows pending-state text and reverts when pending changes", () => {
+    const { rerender } = render(<AnchorForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Register")).toBeInTheDocument();
+    rerender(<AnchorForm onSubmit={() => {}} pending />);
+    expect(screen.getByText("Registering…")).toBeInTheDocument();
+    expect(screen.getByText("Registering…")).toBeDisabled();
+    rerender(<AnchorForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Register")).toBeInTheDocument();
+    expect(screen.getByText("Register")).not.toBeDisabled();
   });
 
   it("disables Reset while pending and re-enables it afterward", () => {

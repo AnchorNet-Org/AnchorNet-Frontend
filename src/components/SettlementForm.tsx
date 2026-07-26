@@ -196,7 +196,7 @@ export function SettlementForm({
           disabled={pending}
           className="flex-1 h-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
         >
-          Open settlement
+          {pending ? "Opening…" : "Open settlement"}
         </button>
         <button
           type="button"
