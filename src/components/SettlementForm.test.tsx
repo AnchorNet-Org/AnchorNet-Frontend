@@ -86,6 +86,17 @@ describe("SettlementForm", () => {
     });
   });
 
+  it("disables Reset while pending and re-enables it afterward", () => {
+    const { rerender } = render(<SettlementForm onSubmit={() => {}} pending />);
+    const resetButton = screen.getByText("Reset");
+
+    expect(resetButton).toBeDisabled();
+
+    rerender(<SettlementForm onSubmit={() => {}} pending={false} />);
+
+    expect(resetButton).toBeEnabled();
+  });
+
   it("clears all field values, errors, and focuses the anchor field after reset", () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} />);
