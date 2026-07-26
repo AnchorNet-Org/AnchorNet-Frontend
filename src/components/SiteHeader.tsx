@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -69,8 +70,65 @@ function ThemeToggle() {
   );
 }
 
+/** Sync icon used for the "Use system theme" reset button. */
+function SyncIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+/** Button that reverts to the OS theme preference, only shown when overridden. */
+function ResetToSystemButton() {
+  const { isOverridden, resetToSystem } = useTheme();
+
+  if (!isOverridden) return null;
+
+  return (
+    <button
+      onClick={resetToSystem}
+      aria-label="Use system theme"
+      title="Use system theme"
+      className="rounded-lg border border-zinc-700 p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+    >
+      <SyncIcon />
+    </button>
+  );
+}
+
+const NAV_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/anchors", label: "Anchors" },
+  { href: "/settlements", label: "Settlements" },
+];
+
+/** Determines if a navigation link matches the current pathname. */
+function isLinkActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 /** Top navigation shared across pages. */
 export function SiteHeader() {
+  const pathname = usePathname() ?? "";
+
   return (
     <header className="border-b border-zinc-900">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
@@ -78,19 +136,25 @@ export function SiteHeader() {
           AnchorNet
         </Link>
         <div className="flex items-center gap-4 text-sm text-zinc-400">
-          <Link href="/" className="hover:text-zinc-100">
-            Home
-          </Link>
-          <Link href="/dashboard" className="hover:text-zinc-100">
-            Dashboard
-          </Link>
-          <Link href="/anchors" className="hover:text-zinc-100">
-            Anchors
-          </Link>
-          <Link href="/settlements" className="hover:text-zinc-100">
-            Settlements
-          </Link>
+          {NAV_LINKS.map((link) => {
+            const isActive = isLinkActive(pathname, link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={isActive ? "page" : undefined}
+                className={
+                  isActive
+                    ? "text-zinc-100 font-medium"
+                    : "hover:text-zinc-100 transition-colors"
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <ThemeToggle />
+          <ResetToSystemButton />
           <ConnectButton />
         </div>
       </nav>

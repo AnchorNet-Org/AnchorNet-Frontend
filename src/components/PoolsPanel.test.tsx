@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { PoolsPanel } from "./PoolsPanel";
 import { fetchPools } from "@/lib/api";
 
+import React from 'react';
+import * as search from '@/lib/search';
 const mockReplace = vi.fn();
 let mockSearchParamsString = "";
 
@@ -45,6 +47,20 @@ describe("PoolsPanel", () => {
     expect(screen.getAllByText("1,500").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("renders pools when provided via props without fetching", async () => {
+    const mockPools = [
+      { asset: "USDC", total: 1000, anchors: 2 },
+      { asset: "EURC", total: 500, anchors: 1 },
+    ];
+
+    render(<PoolsPanel pools={mockPools} />);
+
+    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("EURC")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument(); // Assets stat card
+    expect(fetchPools).not.toHaveBeenCalled();
+  });
+
   it("focuses the search box when / is pressed", async () => {
     vi.mocked(fetchPools).mockResolvedValue([
       { asset: "USDC", total: 1000, anchors: 2 },
@@ -56,6 +72,20 @@ describe("PoolsPanel", () => {
     fireEvent.keyDown(document.body, { key: "/" });
 
     expect(document.activeElement).toBe(screen.getByLabelText("Search pools"));
+  });
+
+  it("advertises the / focus shortcut in the search placeholder", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toHaveAttribute(
+      "placeholder",
+      "Search pools… (/)",
+    );
   });
 
   it("filters pools via the search box", async () => {
@@ -119,6 +149,42 @@ describe("PoolsPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("hides the search input when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+
+    await screen.findByText(/no liquidity pools yet/i);
+    expect(
+      screen.queryByLabelText("Search pools"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the search input and keeps the Refresh button when pools exist", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the Refresh button available even when there are zero pools", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([]);
+
+    render(<PoolsPanel />);
+    await screen.findByText(/no liquidity pools yet/i);
+
+    expect(
+      screen.getByRole("button", { name: "Refresh" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows a no-results empty state when the search matches nothing", async () => {
     vi.mocked(fetchPools).mockResolvedValue([
       { asset: "USDC", total: 1000, anchors: 2 },
@@ -132,7 +198,7 @@ describe("PoolsPanel", () => {
     });
 
     expect(
-      screen.getByText("No pools match your search."),
+      await screen.findByText("No pools match your search."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/no liquidity pools yet/i),
@@ -140,7 +206,7 @@ describe("PoolsPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(await screen.findByText("USDC")).toBeInTheDocument();
     expect(screen.getByLabelText("Search pools")).toHaveValue("");
   });
 
@@ -188,5 +254,39 @@ describe("PoolsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
 
     await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not recompute filteredPools on unrelated parent re-render", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+      { asset: "EURC", total: 500, anchors: 1 },
+    ]);
+
+    const matchesSpy = vi.spyOn(search, "matchesQuery");
+
+    const Wrapper = () => {
+      const [tick, setTick] = React.useState(0);
+      return (
+        <div>
+          <button onClick={() => setTick((c) => c + 1)} data-testid="inc">
+            Inc
+          </button>
+          <PoolsPanel />
+        </div>
+      );
+    };
+
+    render(<Wrapper />);
+    await screen.findByText("USDC");
+    // initial calls: one per pool
+    const initialCalls = matchesSpy.mock.calls.length;
+    expect(initialCalls).toBeGreaterThanOrEqual(2);
+
+    // Trigger unrelated parent re-render
+    fireEvent.click(screen.getByTestId("inc"));
+    // Wait a tick to allow possible effects
+    await new Promise((r) => setTimeout(r, 0));
+    const afterCalls = matchesSpy.mock.calls.length;
+    expect(afterCalls).toBe(initialCalls);
   });
 });

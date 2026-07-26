@@ -8,6 +8,12 @@ import { ThemeProvider } from "./ThemeProvider";
 // Helpers
 // ---------------------------------------------------------------------------
 
+const mockUsePathname = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockUsePathname(),
+}));
+
 function mockMediaQuery(prefersDark: boolean) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -34,6 +40,7 @@ function renderHeader() {
 const STORAGE_KEY = "anchornet:theme";
 
 beforeEach(() => {
+  mockUsePathname.mockReturnValue("/");
   localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.classList.remove("dark");
@@ -59,6 +66,10 @@ describe("SiteHeader navigation", () => {
       "href",
       "/",
     );
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/dashboard",
@@ -78,6 +89,228 @@ describe("SiteHeader navigation", () => {
     expect(
       screen.getByRole("button", { name: /connect wallet/i }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Active route aria-current marking
+// ---------------------------------------------------------------------------
+
+describe("SiteHeader active route marking", () => {
+  it("marks 'Home' link with aria-current='page' when on '/'", () => {
+    mockUsePathname.mockReturnValue("/");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Anchors" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(
+      screen.getByRole("link", { name: "Settlements" }),
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks 'Dashboard' link with aria-current='page' when on '/dashboard'", () => {
+    mockUsePathname.mockReturnValue("/dashboard");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("marks 'Anchors' link with aria-current='page' when on '/anchors'", () => {
+    mockUsePathname.mockReturnValue("/anchors");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Anchors" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("marks 'Anchors' link as current for detail routes like '/anchors/anc_123'", () => {
+    mockUsePathname.mockReturnValue("/anchors/anc_123");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Anchors" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("marks 'Settlements' link with aria-current='page' when on '/settlements'", () => {
+    mockUsePathname.mockReturnValue("/settlements");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Settlements" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("marks 'Settlements' link as current for detail routes like '/settlements/stl_456'", () => {
+    mockUsePathname.mockReturnValue("/settlements/stl_456");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Settlements" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("does not mark any link as current for an unrecognized route", () => {
+    mockUsePathname.mockReturnValue("/unknown");
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Anchors" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(
+      screen.getByRole("link", { name: "Settlements" }),
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("handles null pathname gracefully", () => {
+    mockUsePathname.mockReturnValue(null);
+    renderHeader();
+
+    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.getByRole("link", { name: "Anchors" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(
+      screen.getByRole("link", { name: "Settlements" }),
+    ).not.toHaveAttribute("aria-current");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reset to system theme button
+// ---------------------------------------------------------------------------
+
+describe("SiteHeader reset to system theme", () => {
+  it("does not show the reset button when isOverridden is false (no stored override)", async () => {
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the reset button when isOverridden is true (stored override exists)", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /use system theme/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls resetToSystem when clicked and reverts toggle label to follow system", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark"); // override → isOverridden = true
+    mockMediaQuery(false); // system is light
+    renderHeader();
+
+    // Wait for the override to be read and reset button to appear
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    // After reset, the toggle should reflect the system preference (light)
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    // localStorage should be cleared
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    // Reset button should disappear
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the reset button after clicking it (isOverridden becomes false)", async () => {
+    localStorage.setItem(STORAGE_KEY, "light");
+    mockMediaQuery(true); // system is dark
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /use system theme/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not break the existing toggle when reset button is present", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    // Existing toggle should still work
+    const toggleBtn = screen.getByRole("button", {
+      name: /switch to light mode/i,
+    });
+    fireEvent.click(toggleBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
   });
 });
 

@@ -46,6 +46,15 @@ export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
     return () => controller.abort();
   }, [knownAssets]);
 
+  /** Clears a stale ready/error result so new input isn't shown alongside it. */
+  function clearStaleResult() {
+    setResult((prev) =>
+      prev.status === "ready" || prev.status === "error"
+        ? { status: "idle" }
+        : prev,
+    );
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     const numeric = Number(amount);
@@ -77,7 +86,10 @@ export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
           <label className="mb-1 block text-xs text-zinc-400">Asset</label>
           <input
             value={asset}
-            onChange={(e) => setAsset(e.target.value)}
+            onChange={(e) => {
+              setAsset(e.target.value);
+              clearStaleResult();
+            }}
             className={inputClass}
             placeholder="USDC"
             list={assetOptions.length > 0 ? DATALIST_ID : undefined}
@@ -94,7 +106,10 @@ export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
           <label className="mb-1 block text-xs text-zinc-400">Amount</label>
           <input
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              clearStaleResult();
+            }}
             inputMode="numeric"
             className={inputClass}
             placeholder="1000"

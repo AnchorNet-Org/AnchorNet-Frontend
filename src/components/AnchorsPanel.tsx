@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/anchorsApi";
 import { Anchor } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
+import { ApiRequestError } from "@/lib/api";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
@@ -16,11 +17,22 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
-import { AnchorTable } from "./AnchorTable";
+import { AnchorTable, SortKey } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
+import { SortState, SortDirection } from "@/hooks/useSortableData";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+const VALID_SORT_KEYS: ReadonlySet<string> = new Set<SortKey>([
+  "name",
+  "registeredAt",
+  "active",
+]);
+const VALID_SORT_DIRECTIONS: ReadonlySet<string> = new Set<SortDirection>([
+  "asc",
+  "desc",
+]);
 
 /**
  * Delay (ms) before a paused search query is applied to the filtered list.
@@ -58,6 +70,13 @@ export function AnchorsPanel() {
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
+  // Ids of anchors with a deactivation request currently in flight. This is
+  // mirrored into a ref so the short-circuit guard below always reads the
+  // latest value, independent of which render produced the deregister closure.
+  const [deregisteringIds, setDeregisteringIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const deregisteringRef = useRef<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
@@ -90,6 +109,14 @@ export function AnchorsPanel() {
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
 
+  // When the URL carries an invalid status value, correct it to the effective
+  // fallback ("all") so the address bar always reflects what is displayed.
+  useEffect(() => {
+    if (!isStatusFilter(rawStatus)) {
+      setStatus("all");
+    }
+  }, [rawStatus, setStatus]);
+
   const [query, setQuery] = useQueryState("q", "");
 
   // Debounce only the value that drives filtering so large anchor lists aren't
@@ -99,7 +126,7 @@ export function AnchorsPanel() {
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], debouncedQuery),
+          matchesQuery([anchor.id, anchor.name], query),
         )
       : [];
 
@@ -114,7 +141,14 @@ export function AnchorsPanel() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       notify("error", message);
-      setServerError(message);
+      // Only surface id-specific failures (e.g. duplicate/conflict) inline on the
+      // AnchorForm id field. Generic failures (network, 5xx, etc.) stay as toasts.
+      if (
+        err instanceof ApiRequestError &&
+        (err.status === 409 || err.code === "CONFLICT")
+      ) {
+        setServerError(message);
+      }
       return false;
     } finally {
       setPending(false);
@@ -122,12 +156,26 @@ export function AnchorsPanel() {
   }
 
   async function deregister(id: string) {
+    // Guard against a duplicate deregisterAnchor request for an anchor that is
+    // already being deactivated (e.g. a rapid second click on the same row
+    // while the first request is still in flight). register()'s separate
+    // `pending` guard is intentionally untouched.
+    if (deregisteringRef.current.has(id)) return;
+    deregisteringRef.current.add(id);
+    setDeregisteringIds((prev) => new Set(prev).add(id));
     try {
       await deregisterAnchor(id);
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Deactivation failed");
+    } finally {
+      deregisteringRef.current.delete(id);
+      setDeregisteringIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   }
 
@@ -192,6 +240,12 @@ export function AnchorsPanel() {
               <AnchorTable
                 anchors={filteredAnchors}
                 onDeregister={setPendingDeregisterId}
+                deregisteringIds={deregisteringIds}
+                initialSort={initialSort}
+                onSortChange={(s) => {
+                  setSortParam(s?.key ?? "");
+                  setDirParam(s?.direction ?? "");
+                }}
               />
             )}
           </>

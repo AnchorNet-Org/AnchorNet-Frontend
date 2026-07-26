@@ -8,7 +8,7 @@ import { formatStatus } from "@/lib/format";
 const KNOWN_VARIANT_CLASSES: Record<SettlementStatus, string> = {
   pending: "text-amber-300",
   executed: "text-emerald-300",
-  cancelled: "text-zinc-300",
+  cancelled: "text-zinc-100",
 };
 
 /** Neutral styling used for a status with no defined variant. */
@@ -42,7 +42,7 @@ describe("StatusBadge", () => {
     expect(getVisibleBadge(container)).toHaveClass("text-emerald-300");
 
     rerender(<StatusBadge status="cancelled" />);
-    expect(getVisibleBadge(container)).toHaveClass("text-zinc-300");
+    expect(getVisibleBadge(container)).toHaveClass("text-zinc-100");
   });
 
   it("renders a defined, non-fallback variant for every settlement status", () => {

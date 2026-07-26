@@ -14,6 +14,7 @@ import {
   registerAnchor,
   deregisterAnchor,
 } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Mock next/navigation so the panel can run in jsdom.
@@ -265,7 +266,9 @@ describe("AnchorsPanel", () => {
 
   it("surfaces a field-level error on failed registration and does not clear the form", async () => {
     vi.mocked(fetchAnchors).mockResolvedValue([]);
-    vi.mocked(registerAnchor).mockRejectedValue(new Error("Duplicate anchor id"));
+    vi.mocked(registerAnchor).mockRejectedValue(
+      new ApiRequestError(409, "CONFLICT", "Duplicate anchor id"),
+    );
 
     renderPanel();
     await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
@@ -280,8 +283,55 @@ describe("AnchorsPanel", () => {
         name: undefined,
       });
       expect(idInput).toHaveValue("existing-anchor");
-      expect(screen.getByText("Duplicate anchor id")).toBeInTheDocument();
     });
+
+    // Inline error should be inside the form and toast should also appear.
+    const form = idInput.closest("form");
+    expect(form).not.toBeNull();
+    await waitFor(() => {
+      expect(
+        within(form as HTMLFormElement).getByText("Duplicate anchor id"),
+      ).toBeInTheDocument();
+    });
+    expect(idInput).toHaveAttribute("aria-invalid", "true");
+    // Toast also contains the message; there should be at least 2 occurrences
+    // (inline + toast) in the whole document.
+    expect(screen.getAllByText(/duplicate anchor id/i).length).toBeGreaterThanOrEqual(
+      2,
+    );
+  });
+
+  it("does not mark id field invalid on generic registration failure but shows toast", async () => {
+    vi.mocked(fetchAnchors).mockResolvedValue([]);
+    vi.mocked(registerAnchor).mockRejectedValue(new Error("Network error"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchAnchors).toHaveBeenCalledTimes(1));
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "new-anchor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() => {
+      expect(registerAnchor).toHaveBeenCalledWith({
+        id: "new-anchor",
+        name: undefined,
+      });
+    });
+
+    // Toast notification must still fire for generic failures.
+    expect(await screen.findByText("Network error")).toBeInTheDocument();
+
+    // Generic failure should NOT mark id field as invalid and should NOT show
+    // an inline error inside the form.
+    expect(idInput).toHaveAttribute("aria-invalid", "false");
+    const form = idInput.closest("form");
+    expect(form).not.toBeNull();
+    // Inline error lives inside the form; toast lives outside, so searching
+    // within the form must not find the message.
+    expect(
+      within(form as HTMLFormElement).queryByText("Network error"),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms before deactivating an anchor", async () => {
@@ -411,6 +461,146 @@ describe("AnchorsPanel", () => {
     expect(
       screen.getByRole("button", { name: "All" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("corrects an invalid status URL param to 'all'", async () => {
+    mockSearchParamsString = "status=bogus";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // The effect should have fired and called router.replace without status=bogus.
+    // Because 'all' is the default, useQueryState strips it from the URL entirely.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/anchors", { scroll: false }),
+    );
+  });
+
+  it("does not correct the URL when the status param is already valid", async () => {
+    mockSearchParamsString = "status=active";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // No corrective router.replace should have been triggered for a valid value.
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("hydrates the sort state from the URL querystring on load", async () => {
+    mockSearchParamsString = "sort=name&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+      { id: "c", name: "Charlie", registeredAt: "2024-03-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Alpha");
+
+    // Rows should be sorted alphabetically by name ascending.
+    const rows = screen.getAllByRole("row").slice(1); // skip header
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Alphaa", "Bravob", "Charliec"]);
+  });
+
+  it("falls back to unsorted when the URL has an invalid sort key", async () => {
+    mockSearchParamsString = "sort=bogus&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Bravo");
+
+    // Original order preserved (no sort applied).
+    const rows = screen.getAllByRole("row").slice(1);
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Bravob", "Alphaa"]);
+  });
+
+  it("falls back to unsorted when the URL has an invalid sort direction", async () => {
+    mockSearchParamsString = "sort=name&dir=up";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Bravo");
+
+    const rows = screen.getAllByRole("row").slice(1);
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Bravob", "Alphaa"]);
+  });
+
+  it("corrects an invalid sort URL param to unsorted", async () => {
+    mockSearchParamsString = "sort=bogus&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.not.stringContaining("sort=bogus"),
+        { scroll: false },
+      ),
+    );
+  });
+
+  it("updates the URL querystring when a sort column is clicked", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("sort=name"),
+      { scroll: false },
+    );
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("dir=asc"),
+      { scroll: false },
+    );
+  });
+
+  it("removes sort/dir params from the URL when sort is cleared", async () => {
+    mockSearchParamsString = "sort=name&dir=desc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // Click the same column header 3 times: asc → desc → unsorted
+    const sortBtn = screen.getByLabelText("Sort by Anchor");
+    fireEvent.click(sortBtn); // already desc from URL, this would go to unsorted
+    fireEvent.click(sortBtn); // asc
+    fireEvent.click(sortBtn); // desc
+    fireEvent.click(sortBtn); // unsorted (clear)
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.not.stringContaining("sort="),
+        { scroll: false },
+      ),
+    );
   });
 
   // -------------------------------------------------------------------------
