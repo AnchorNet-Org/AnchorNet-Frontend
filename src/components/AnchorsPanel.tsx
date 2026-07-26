@@ -17,11 +17,22 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
-import { AnchorTable } from "./AnchorTable";
+import { AnchorTable, SortKey } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
+import { SortState, SortDirection } from "@/hooks/useSortableData";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+const VALID_SORT_KEYS: ReadonlySet<string> = new Set<SortKey>([
+  "name",
+  "registeredAt",
+  "active",
+]);
+const VALID_SORT_DIRECTIONS: ReadonlySet<string> = new Set<SortDirection>([
+  "asc",
+  "desc",
+]);
 
 /**
  * Delay (ms) before a paused search query is applied to the filtered list.
@@ -115,7 +126,7 @@ export function AnchorsPanel() {
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], debouncedQuery),
+          matchesQuery([anchor.id, anchor.name], query),
         )
       : [];
 
@@ -226,6 +237,11 @@ export function AnchorsPanel() {
                 anchors={filteredAnchors}
                 onDeregister={setPendingDeregisterId}
                 deregisteringIds={deregisteringIds}
+                initialSort={initialSort}
+                onSortChange={(s) => {
+                  setSortParam(s?.key ?? "");
+                  setDirParam(s?.direction ?? "");
+                }}
               />
             )}
           </>

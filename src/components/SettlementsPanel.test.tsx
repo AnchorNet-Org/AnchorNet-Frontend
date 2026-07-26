@@ -167,6 +167,25 @@ describe("SettlementsPanel", () => {
     }
   });
 
+  it("filters the list by settlement status", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([
+        sample,
+        { ...sample, id: 2, anchor: "anchorB", status: "executed" },
+      ]),
+    );
+
+    renderPanel();
+    await screen.findAllByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "executed" },
+    });
+
+    await waitFor(() => expect(screen.queryAllByText("anchorA")).toHaveLength(0));
+    expect(screen.getAllByText("anchorB").length).toBeGreaterThan(0);
+  });
+
   it("shows the no-data empty state without a clear-filters action", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([]));
 
@@ -701,11 +720,54 @@ describe("SettlementsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
 
     await waitFor(() => {
-      expect(exportSettlementsCsv).toHaveBeenCalledWith({ pageSize: 10 });
+      expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
     });
 
     // Check if the download link was created
     expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("exports all loaded pages as a single CSV after Load more", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([{ ...sample, id: 2, anchor: "anchorB" }], {
+          page: 2,
+          totalPages: 2,
+          total: 2,
+        }),
+      );
+    vi.mocked(exportSettlementsCsv)
+      .mockResolvedValueOnce("id,anchor\n1,anchorA")
+      .mockResolvedValueOnce("id,anchor\n2,anchorB");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Load the second page
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
+
+    // Now export — should request both pages
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledTimes(2);
+    });
+    expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 2, pageSize: 10 });
+
+    // The CSV should have the header once plus both data rows
+    const blobArg = vi.mocked(createObjectURL).mock.calls[0][0] as Blob;
+    // Read the blob content via a reader
+    const text = await blobArg.text();
+    expect(text).toBe("id,anchor\n1,anchorA\n2,anchorB");
   });
 
   it("disables row action buttons while executeSettlement is in flight, keeping other rows enabled", async () => {

@@ -47,6 +47,21 @@ describe("PoolTable", () => {
     expect(assetCells()).toEqual(["USDC", "EURC", "XLM"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<PoolTable pools={pools} />);
+    const header = screen
+      .getByLabelText("Sort by Total liquidity")
+      .closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(assetCells()).toEqual(["USDC", "EURC", "XLM"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(assetCells()).toEqual(["XLM", "USDC", "EURC"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by total liquidity on a second click", () => {
     render(<PoolTable pools={pools} />);
     fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));

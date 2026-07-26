@@ -9,6 +9,18 @@ area tag — e.g. `**UX:**`, `**Accessibility:**`, `**App:**` — naming the
 part of the app it touches. If your PR doesn't change user-facing behavior
 (docs-only, test-only, internal tooling), it doesn't need an entry.
 
+## [0.9.1]
+
+### Fixed
+
+- **UX:** `SettlementForm`'s asset field no longer defaults to a hardcoded
+  `"USDC"` regardless of the deployment's actual pools. The initial value
+  and the `Reset` action now prefer the first asset reported by
+  `availableLiquidity` (as supplied by `SettlementsPanel` from the live
+  pool list), falling back to `"USDC"` only when that data hasn't loaded
+  yet or is empty. Previously, a deployment without a USDC pool would
+  show and reset to an asset code that always failed the liquidity check.
+
 ## [0.9.0]
 
 ### Added

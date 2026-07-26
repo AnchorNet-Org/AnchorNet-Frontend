@@ -481,6 +481,117 @@ describe("AnchorsPanel", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("hydrates the sort state from the URL querystring on load", async () => {
+    mockSearchParamsString = "sort=name&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+      { id: "c", name: "Charlie", registeredAt: "2024-03-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Alpha");
+
+    // Rows should be sorted alphabetically by name ascending.
+    const rows = screen.getAllByRole("row").slice(1); // skip header
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Alphaa", "Bravob", "Charliec"]);
+  });
+
+  it("falls back to unsorted when the URL has an invalid sort key", async () => {
+    mockSearchParamsString = "sort=bogus&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Bravo");
+
+    // Original order preserved (no sort applied).
+    const rows = screen.getAllByRole("row").slice(1);
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Bravob", "Alphaa"]);
+  });
+
+  it("falls back to unsorted when the URL has an invalid sort direction", async () => {
+    mockSearchParamsString = "sort=name&dir=up";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "b", name: "Bravo", registeredAt: "2024-02-01T00:00:00.000Z", active: true },
+      { id: "a", name: "Alpha", registeredAt: "2024-01-01T00:00:00.000Z", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Bravo");
+
+    const rows = screen.getAllByRole("row").slice(1);
+    const names = rows.map((r) => r.querySelector("td")?.textContent);
+    expect(names).toEqual(["Bravob", "Alphaa"]);
+  });
+
+  it("corrects an invalid sort URL param to unsorted", async () => {
+    mockSearchParamsString = "sort=bogus&dir=asc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.not.stringContaining("sort=bogus"),
+        { scroll: false },
+      ),
+    );
+  });
+
+  it("updates the URL querystring when a sort column is clicked", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("sort=name"),
+      { scroll: false },
+    );
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("dir=asc"),
+      { scroll: false },
+    );
+  });
+
+  it("removes sort/dir params from the URL when sort is cleared", async () => {
+    mockSearchParamsString = "sort=name&dir=desc";
+    vi.mocked(fetchAnchors).mockResolvedValue([
+      { id: "a", name: "Anchor A", registeredAt: "", active: true },
+      { id: "b", name: "Anchor B", registeredAt: "", active: true },
+    ]);
+
+    renderPanel();
+    await screen.findByText("Anchor A");
+
+    // Click the same column header 3 times: asc → desc → unsorted
+    const sortBtn = screen.getByLabelText("Sort by Anchor");
+    fireEvent.click(sortBtn); // already desc from URL, this would go to unsorted
+    fireEvent.click(sortBtn); // asc
+    fireEvent.click(sortBtn); // desc
+    fireEvent.click(sortBtn); // unsorted (clear)
+
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.not.stringContaining("sort="),
+        { scroll: false },
+      ),
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Arrow-key roving focus tests
   // -------------------------------------------------------------------------

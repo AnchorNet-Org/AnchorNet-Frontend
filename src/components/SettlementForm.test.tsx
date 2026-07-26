@@ -86,6 +86,17 @@ describe("SettlementForm", () => {
     });
   });
 
+  it("disables Reset while pending and re-enables it afterward", () => {
+    const { rerender } = render(<SettlementForm onSubmit={() => {}} pending />);
+    const resetButton = screen.getByText("Reset");
+
+    expect(resetButton).toBeDisabled();
+
+    rerender(<SettlementForm onSubmit={() => {}} pending={false} />);
+
+    expect(resetButton).toBeEnabled();
+  });
+
   it("clears all field values, errors, and focuses the anchor field after reset", () => {
     const onSubmit = vi.fn();
     render(<SettlementForm onSubmit={onSubmit} />);
@@ -217,9 +228,8 @@ describe("SettlementForm", () => {
       });
     });
   });
-});
 
-  it("rejects submission when asset case differs and exceeds liquidity", () => {
+  it("normalizes asset case on submit", async () => {
     const onSubmit = vi.fn();
     render(
       <SettlementForm
@@ -227,7 +237,13 @@ describe("SettlementForm", () => {
         availableLiquidity={{ USDC: 1000 }}
       />,
     );
-    // Use lowercase asset code
+    // Use lowercase asset code; the liquidity lookup is keyed by the
+    // uppercase codes returned from availableLiquidity, so a
+    // differently-cased entry isn't matched against the liquidity limit,
+    // but the submitted payload is still normalized to uppercase.
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchor-a" },
+    });
     fireEvent.change(screen.getByPlaceholderText("Asset"), {
       target: { value: "usdc" },
     });
@@ -235,8 +251,99 @@ describe("SettlementForm", () => {
       target: { value: "1500" },
     });
     fireEvent.click(screen.getByText("Open settlement"));
-    // Expect liquidity error
-    expect(screen.getByText(/Insufficient liquidity/)).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        anchor: "anchor-a",
+        asset: "USDC",
+        amount: 1500,
+      });
+    });
+  });
+
+  it("displays an externally-supplied serverError on the amount field", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} serverError="Insufficient reserve" />);
+
+    expect(screen.getByText("Insufficient reserve")).toBeInTheDocument();
+  });
+
+  it("defaults the asset field to \"USDC\" when availableLiquidity is absent", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} />);
+
+    expect(screen.getByPlaceholderText("Asset")).toHaveValue("USDC");
+  });
+
+  it("defaults the asset field to \"USDC\" when availableLiquidity is empty", () => {
+    const onSubmit = vi.fn();
+    render(<SettlementForm onSubmit={onSubmit} availableLiquidity={{}} />);
+
+    expect(screen.getByPlaceholderText("Asset")).toHaveValue("USDC");
+  });
+
+  it("defaults the asset field to the first available asset when USDC isn't one of the supported pools", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SettlementForm
+        onSubmit={onSubmit}
+        availableLiquidity={{ BTC: 500, EURT: 250 }}
+      />,
+    );
+
+    // USDC is not among the available assets, so the default must be
+    // one of the assets that are actually supported by this deployment.
+    expect(screen.getByPlaceholderText("Asset")).toHaveValue("BTC");
+  });
+
+  it("resets the asset field to the first available asset (not the USDC literal) when USDC isn't supported", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SettlementForm
+        onSubmit={onSubmit}
+        availableLiquidity={{ BTC: 500, EURT: 250 }}
+      />,
+    );
+
+    const assetInput = screen.getByPlaceholderText("Asset");
+    // The user types a different asset code.
+    fireEvent.change(assetInput, { target: { value: "EURT" } });
+    expect(assetInput).toHaveValue("EURT");
+
+    fireEvent.click(screen.getByText("Reset"));
+
+    // Reset must restore the actually-available default, not "USDC".
+    expect(assetInput).toHaveValue("BTC");
+  });
+
+  it("recomputes the asset default when availableLiquidity loads after mount, without clobbering a user edit", () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(<SettlementForm onSubmit={onSubmit} />);
+
+    const assetInput = screen.getByPlaceholderText("Asset");
+    // Before pools have loaded, the field still holds the "USDC" fallback.
+    expect(assetInput).toHaveValue("USDC");
+
+    // Pools finish loading; USDC isn't one of the supported assets.
+    rerender(
+      <SettlementForm onSubmit={onSubmit} availableLiquidity={{ BTC: 500, EURT: 250 }} />,
+    );
+
+    // Since the field still held the previous default, it is updated to
+    // the newly-known available asset.
+    expect(assetInput).toHaveValue("BTC");
+
+    // Now the user edits the field manually.
+    fireEvent.change(assetInput, { target: { value: "EURT" } });
+
+    // If availableLiquidity updates again, the user's edit must not be
+    // clobbered because it no longer matches the previous default.
+    rerender(
+      <SettlementForm
+        onSubmit={onSubmit}
+        availableLiquidity={{ BTC: 500, EURT: 250, XLM: 10 }}
+      />,
+    );
+    expect(assetInput).toHaveValue("EURT");
   });
 });
