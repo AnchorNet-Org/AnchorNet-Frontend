@@ -113,6 +113,33 @@ describe("apiRequest", () => {
     const err = (await apiRequest("/x").catch((e) => e)) as { requestId?: string };
     expect(err.requestId).toBeUndefined();
   });
+
+  it("throws a descriptive ApiRequestError when a successful JSON response is malformed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: { get: () => null },
+        json: async () => {
+          throw new SyntaxError("Unexpected end of JSON input");
+        },
+        text: async () => "",
+      }),
+    );
+
+    const err = await apiRequest("/x").catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect(err).not.toBeInstanceOf(SyntaxError);
+    expect(err).toMatchObject({
+      name: "ApiRequestError",
+      status: 200,
+      code: "INVALID_RESPONSE",
+      message: "The server returned an invalid response.",
+    });
+  });
 });
 
 describe("fetchPools", () => {
