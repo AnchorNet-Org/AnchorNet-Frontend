@@ -7,7 +7,7 @@ import { formatStatus } from "@/lib/format";
 const STYLES: Record<SettlementStatus, string> = {
   pending: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
   executed: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
-  cancelled: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30",
+  cancelled: "bg-zinc-500/30 text-zinc-100 ring-zinc-500/30",
 };
 
 /** Neutral styling for a status outside the known {@link SettlementStatus} set. */

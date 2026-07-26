@@ -56,10 +56,21 @@ export function SettlementForm({
   availableLiquidity?: Record<string, number>;
   serverError?: string;
 }) {
+  /**
+   * The asset field's default value: the first asset known to be
+   * available (from `availableLiquidity`), falling back to "USDC" when
+   * `availableLiquidity` hasn't been populated yet (e.g. before pools
+   * have loaded) or is empty.
+   */
+  function getDefaultAsset(liquidity?: Record<string, number>): string {
+    return Object.keys(liquidity ?? {})[0] ?? "USDC";
+  }
+
   const [anchor, setAnchor] = useState("");
-  const [asset, setAsset] = useState("USDC");
+  const [asset, setAsset] = useState(() => getDefaultAsset(availableLiquidity));
   const [amount, setAmount] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+  const defaultAssetRef = useRef(getDefaultAsset(availableLiquidity));
 
   useEffect(() => {
     if (serverError) {
@@ -67,6 +78,16 @@ export function SettlementForm({
       setErrors((prev) => ({ ...prev, amount: serverError }));
     }
   }, [serverError]);
+
+  // Recompute the default asset whenever availableLiquidity changes (e.g.
+  // once pools finish loading after mount). Only update the field if it
+  // still holds the previous default, so we never clobber a user's
+  // in-progress edit.
+  useEffect(() => {
+    const nextDefault = getDefaultAsset(availableLiquidity);
+    setAsset((current) => (current === defaultAssetRef.current ? nextDefault : current));
+    defaultAssetRef.current = nextDefault;
+  }, [availableLiquidity]);
 
   const anchorRef = useRef<HTMLInputElement>(null);
   const assetOptions = Object.keys(availableLiquidity ?? {});
@@ -94,7 +115,7 @@ export function SettlementForm({
 
   function reset() {
     setAnchor("");
-    setAsset("USDC");
+    setAsset(defaultAssetRef.current);
     setAmount("");
     setErrors({});
     anchorRef.current?.focus();
@@ -175,11 +196,12 @@ export function SettlementForm({
           disabled={pending}
           className="flex-1 h-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
         >
-          Open settlement
+          {pending ? "Opening…" : "Open settlement"}
         </button>
         <button
           type="button"
           onClick={reset}
+          disabled={pending}
           className="h-fit rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
         >
           Reset

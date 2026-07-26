@@ -42,6 +42,40 @@ describe("pushToast", () => {
     expect(result.droppedCount).toBe(1);
     expect(result.toasts.map((t) => t.id)).toEqual([2, 3, 4]);
   });
+
+  it("keeps only the most recent MAX_TOASTS after a burst of pushes, in original order", () => {
+    // Simulate several near-simultaneous pushToast calls (e.g. a batch of
+    // failed requests each firing notify at once).  We push MAX_TOASTS * 2 + 1
+    // toasts in sequence and verify the surviving slice is exactly the last
+    // MAX_TOASTS entries, in their original push order.
+    const burstSize = MAX_TOASTS * 2 + 1; // e.g. 7 for MAX_TOASTS = 3
+    let toasts: Toast[] = [];
+    let totalDropped = 0;
+
+    for (let id = 1; id <= burstSize; id += 1) {
+      const result = pushToast(toasts, toast(id, `msg-${id}`));
+      toasts = result.toasts;
+      totalDropped += result.droppedCount;
+    }
+
+    // Only the last MAX_TOASTS survive.
+    expect(toasts).toHaveLength(MAX_TOASTS);
+
+    // They are the most recently pushed ones …
+    const expectedIds = Array.from(
+      { length: MAX_TOASTS },
+      (_, i) => burstSize - MAX_TOASTS + 1 + i
+    );
+    expect(toasts.map((t) => t.id)).toEqual(expectedIds);
+
+    // … and their messages are intact (no identity mix-up).
+    expect(toasts.map((t) => t.message)).toEqual(
+      expectedIds.map((id) => `msg-${id}`)
+    );
+
+    // The total number of dropped toasts equals everything that didn't survive.
+    expect(totalDropped).toBe(burstSize - MAX_TOASTS);
+  });
 });
 
 describe("dismissToast", () => {

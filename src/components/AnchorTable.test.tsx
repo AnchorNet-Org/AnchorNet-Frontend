@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AnchorTable } from "./AnchorTable";
 import { Anchor } from "@/lib/types";
@@ -45,11 +45,47 @@ describe("AnchorTable", () => {
     expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<AnchorTable anchors={anchors} />);
+    const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(nameCells()).toEqual(["Charliec", "Alphaa", "Bravob"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by registered date on a second click", () => {
     render(<AnchorTable anchors={anchors} />);
     fireEvent.click(screen.getByLabelText("Sort by Registered"));
     fireEvent.click(screen.getByLabelText("Sort by Registered"));
     expect(nameCells()).toEqual(["Charliec", "Bravob", "Alphaa"]);
+  });
+
+  it("hydrates from an initialSort prop", () => {
+    render(
+      <AnchorTable
+        anchors={anchors}
+        initialSort={{ key: "name", direction: "asc" }}
+      />,
+    );
+    expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
+  });
+
+  it("calls onSortChange when the sort state changes", () => {
+    const onSortChange = vi.fn();
+    render(
+      <AnchorTable anchors={anchors} onSortChange={onSortChange} />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(onSortChange).toHaveBeenCalledWith({
+      key: "name",
+      direction: "asc",
+    });
   });
 
   it("applies a visible focus style to sortable header buttons", () => {
@@ -78,5 +114,89 @@ describe("AnchorTable", () => {
       />,
     );
     expect(screen.getAllByText("Deactivate")).toHaveLength(1);
+  });
+
+  it("announces the new sort key and direction via a live region when clicked", () => {
+    const { container } = render(<AnchorTable anchors={anchors} />);
+
+    // No announcement on initial render
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    // Click to sort by Anchor name
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorted by Anchor, ascending");
+
+    // Click again to cycle to descending
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorted by Anchor, descending");
+
+    // Click again to cycle to unsorted
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
+
+  describe("initial aria-sort accessibility", () => {
+    it("announces all column headers as aria-sort=none on initial render", () => {
+      render(<AnchorTable anchors={anchors} />);
+
+      const nameHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const registeredHeader = screen
+        .getByLabelText("Sort by Registered")
+        .closest("th");
+      const statusHeader = screen.getByLabelText("Sort by Status").closest("th");
+
+      expect(nameHeader).toHaveAttribute("aria-sort", "none");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "none");
+      expect(statusHeader).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("updates aria-sort to ascending on first column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      expect(header).toHaveAttribute("aria-sort", "none");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("updates aria-sort to descending on second column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("resets aria-sort to none on third column click", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(header).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("switches aria-sort between columns when clicking different headers", () => {
+      render(<AnchorTable anchors={anchors} />);
+      const nameHeader = screen.getByLabelText("Sort by Anchor").closest("th");
+      const registeredHeader = screen
+        .getByLabelText("Sort by Registered")
+        .closest("th");
+
+      // Click Anchor (first sort)
+      fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+      expect(nameHeader).toHaveAttribute("aria-sort", "ascending");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "none");
+
+      // Click Registered (switches to that column, ascending)
+      fireEvent.click(screen.getByLabelText("Sort by Registered"));
+      expect(nameHeader).toHaveAttribute("aria-sort", "none");
+      expect(registeredHeader).toHaveAttribute("aria-sort", "ascending");
+    });
   });
 });

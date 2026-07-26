@@ -90,11 +90,20 @@ function generateRandomSeed(): string {
 function getOrGenerateSessionSeed(): string {
   if (typeof window === "undefined") return "ANCHORNET";
 
-  const stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(SEED_STORAGE_KEY);
+  } catch {
+    // Ignore error
+  }
   if (stored) return stored;
 
   const seed = generateRandomSeed();
-  window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+  try {
+    window.localStorage.setItem(SEED_STORAGE_KEY, seed);
+  } catch {
+    // Ignore error
+  }
   return seed;
 }
 

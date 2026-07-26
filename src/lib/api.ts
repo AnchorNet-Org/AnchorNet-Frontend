@@ -10,18 +10,39 @@ import { Pool, Quote, QuoteRequest, ApiErrorBody } from "./types";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+// ── Shared query-string builder ─────────────────────────────────────────────
+
 /**
- * Returns true when `err` is an AbortError — the rejection thrown by `fetch`
- * (and other Web APIs) when an `AbortSignal` fires.  Use this to distinguish
- * a deliberate cancellation from a genuine network/server failure so callers
- * never surface a user-facing error toast for a request the app itself
- * cancelled on purpose.
+ * Build a URL query string from an object of parameters, skipping keys whose
+ * values are `undefined`.
+ *
+ * Returns an empty string when no parameters are provided, or a string
+ * starting with `?` otherwise.
+ *
+ * @example
+ * buildQueryParams({ anchor: "a", page: 1, pageSize: undefined })
+ * // => "?anchor=a&page=1"
+ *
+ * buildQueryParams({})
+ * // => ""
  */
-export function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === "AbortError";
+export function buildQueryParams(
+  params: Record<string, string | number | undefined>,
+): string {
+  const entries = Object.entries(params).filter(
+    (entry): entry is [string, string | number] => entry[1] !== undefined,
+  );
+
+  if (entries.length === 0) return "";
+
+  const usp = new URLSearchParams();
+  for (const [key, value] of entries) {
+    usp.set(key, String(value));
+  }
+  return `?${usp.toString()}`;
 }
 
-/** Error thrown when the API responds with a non-2xx status. */
+/** Error thrown when the API response cannot be used by the client. */
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
@@ -48,6 +69,20 @@ async function parseError(res: Response): Promise<ApiRequestError> {
   }
 }
 
+async function parseSuccessfulJson<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    const requestId = res.headers?.get("x-request-id") ?? undefined;
+    throw new ApiRequestError(
+      res.status,
+      "INVALID_RESPONSE",
+      "The server returned an invalid response.",
+      requestId,
+    );
+  }
+}
+
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 500;
 
@@ -59,6 +94,11 @@ const INITIAL_BACKOFF_MS = 500;
 export function retryDelayMs(attempt: number): number {
   const baseDelay = INITIAL_BACKOFF_MS * 2 ** attempt;
   return baseDelay + Math.random() * baseDelay;
+}
+
+/** True if `err` is a DOMException raised by an aborted fetch/signal. */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -96,27 +136,82 @@ async function doFetch(
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 }
 
+export interface ApiRequestInit extends RequestInit {
+  timeout?: number;
+}
+
+export let globalDefaultTimeoutMs = 10000;
+
+export function setDefaultTimeout(ms: number) {
+  globalDefaultTimeoutMs = ms;
+}
+
+function composeSignals(
+  timeoutMs: number,
+  callerSignal?: AbortSignal | null,
+): { signal: AbortSignal; cleanup: () => void; hasTimedOut: () => boolean } {
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const onCallerAbort = () => {
+    clearTimeout(timer);
+    controller.abort();
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(timer);
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    clearTimeout(timer);
+    if (callerSignal) {
+      callerSignal.removeEventListener("abort", onCallerAbort);
+    }
+  };
+
+  const hasTimedOut = () => timedOut;
+
+  return { signal: controller.signal, cleanup, hasTimedOut };
+}
+
 /**
  * Performs a JSON request against the API and returns the parsed body.
- * Throws {@link ApiRequestError} on a non-2xx response.
+ * Throws {@link ApiRequestError} on a non-2xx response or when a successful
+ * response cannot be parsed as JSON.
  * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiRequest<T>(
   path: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
   let lastError: unknown;
   const method = init?.method;
+  const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (init?.signal?.aborted) {
       throw new DOMException("signal is aborted", "AbortError");
     }
 
+    const { signal: combinedSignal, cleanup, hasTimedOut } = composeSignals(timeoutMs, init?.signal);
     let res: Response;
     try {
-      res = await doFetch(path, init);
+      res = await doFetch(path, { ...init, signal: combinedSignal });
     } catch (err) {
+      cleanup();
+      if (hasTimedOut()) {
+        throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
+      }
       if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
         throw err;
       }
@@ -124,8 +219,9 @@ export async function apiRequest<T>(
       await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
       continue;
     }
+    cleanup();
 
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return await parseSuccessfulJson<T>(res);
 
     lastError = await parseError(res);
 
@@ -146,20 +242,26 @@ export async function apiRequest<T>(
  */
 export async function apiTextRequest(
   path: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<string> {
   let lastError: unknown;
   const method = init?.method;
+  const timeoutMs = init?.timeout ?? globalDefaultTimeoutMs;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (init?.signal?.aborted) {
       throw new DOMException("signal is aborted", "AbortError");
     }
 
+    const { signal: combinedSignal, cleanup, hasTimedOut } = composeSignals(timeoutMs, init?.signal);
     let res: Response;
     try {
-      res = await doFetch(path, init);
+      res = await doFetch(path, { ...init, signal: combinedSignal });
     } catch (err) {
+      cleanup();
+      if (hasTimedOut()) {
+        throw new ApiRequestError(408, "TIMEOUT", "Request timed out");
+      }
       if (isAbortError(err) || !isIdempotent(method) || attempt === MAX_RETRIES) {
         throw err;
       }
@@ -167,6 +269,7 @@ export async function apiTextRequest(
       await sleep(INITIAL_BACKOFF_MS * 2 ** attempt, init?.signal ?? undefined);
       continue;
     }
+    cleanup();
 
     if (res.ok) return await res.text();
 
