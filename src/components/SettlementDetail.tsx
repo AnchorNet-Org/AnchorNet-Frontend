@@ -36,14 +36,18 @@ export function SettlementDetail({
   );
   const { notify } = useToast();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [pending, setPending] = useState(false);
 
   async function run(action: () => Promise<unknown>, successMessage: string) {
     try {
+      setPending(true);
       await action();
       notify("success", successMessage);
       await refresh();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setPending(false);
     }
   }
 
@@ -112,12 +116,14 @@ export function SettlementDetail({
                       `Executed settlement #${state.data.id}.`,
                     )
                   }
+                  disabled={pending}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-emerald-400 hover:text-emerald-300"
                 >
                   Execute
                 </button>
                 <button
                   onClick={() => setConfirmCancelOpen(true)}
+                  disabled={pending}
                   className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-red-400 hover:text-red-300"
                 >
                   Cancel

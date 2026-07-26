@@ -1,8 +1,12 @@
+import React from "react";
+
 /** Why a list is empty: no data exists yet, or active filters matched nothing. */
 export type EmptyStateReason = "no-data" | "no-results";
 
 type EmptyStateProps = {
   message: string;
+  /** Optional icon rendered above the message */
+  icon?: React.ReactNode;
   /** Defaults to "no-data" (genuinely empty list). */
   reason?: EmptyStateReason;
   /** Shown as a "Clear filters" action when reason is "no-results". */
@@ -14,9 +18,11 @@ export function EmptyState({
   message,
   reason = "no-data",
   onClearFilters,
+  icon,
 }: EmptyStateProps) {
   return (
     <div className="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">
+      {icon && <div className="mb-3 flex justify-center">{icon}</div>}
       <p>{message}</p>
       {reason === "no-results" && onClearFilters ? (
         <button

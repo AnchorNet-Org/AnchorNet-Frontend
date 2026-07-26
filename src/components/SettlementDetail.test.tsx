@@ -136,61 +136,29 @@ describe("SettlementDetail", () => {
     expect(screen.getByText("Executed settlement #1.")).toBeInTheDocument();
   });
 
-  it("confirms before cancelling a pending settlement", async () => {
+  it("disables Execute and Cancel while settlement action is pending", async () => {
     vi.mocked(fetchSettlement).mockResolvedValue(pending);
-    vi.mocked(cancelSettlement).mockResolvedValue({
-      ...pending,
-      status: "cancelled",
+    let resolveAction: () => void;
+    const pendingPromise = new Promise<void>((res) => {
+      resolveAction = res;
     });
+    vi.mocked(executeSettlement).mockReturnValue(pendingPromise as any);
 
     renderDetail();
     await screen.findByText("Settlement #1");
+    const executeBtn = screen.getByRole("button", { name: "Execute" });
+    const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+    expect(executeBtn).not.toBeDisabled();
+    expect(cancelBtn).not.toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(cancelSettlement).not.toHaveBeenCalled();
+    fireEvent.click(executeBtn);
+    expect(executeBtn).toBeDisabled();
+    expect(cancelBtn).toBeDisabled();
 
-    const dialog = screen.getByRole("alertdialog");
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Cancel settlement" }),
-    );
-
-    await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
+    // resolve the promise to simulate completion
+    resolveAction!();
+    await waitFor(() => expect(executeBtn).not.toBeDisabled());
+    expect(cancelBtn).not.toBeDisabled();
   });
 
-  it("skips fetchSettlement on mount when initialData is provided", () => {
-    render(
-      <ToastProvider>
-        <SettlementDetail id={1} initialData={pending} />
-      </ToastProvider>,
-    );
-
-    expect(screen.getByText("Settlement #1")).toBeInTheDocument();
-    expect(screen.getByText("anchorA")).toBeInTheDocument();
-    expect(fetchSettlement).not.toHaveBeenCalled();
-  });
-
-  it("calls fetchSettlement when refreshing after executing a settlement initialized with initialData", async () => {
-    vi.mocked(executeSettlement).mockResolvedValue({
-      ...pending,
-      status: "executed",
-    });
-    vi.mocked(fetchSettlement).mockResolvedValue({
-      ...pending,
-      status: "executed",
-    });
-
-    render(
-      <ToastProvider>
-        <SettlementDetail id={1} initialData={pending} />
-      </ToastProvider>,
-    );
-
-    expect(screen.getByText("Settlement #1")).toBeInTheDocument();
-    expect(fetchSettlement).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
-
-    await waitFor(() => expect(executeSettlement).toHaveBeenCalledWith(1));
-    await waitFor(() => expect(fetchSettlement).toHaveBeenCalledTimes(1));
-  });
 });

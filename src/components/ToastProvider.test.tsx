@@ -258,6 +258,39 @@ describe("ToastProvider", () => {
     expect(toast).not.toBeInTheDocument();
   });
 
+  it("dismisses a toast with Escape key when focused", () => {
+    render(
+      <ToastProvider>
+        <Trigger message="Escape me" />
+      </ToastProvider>,
+    );
+    const toast = screen.getByText("Escape me");
+    const region = screen.getByRole("status");
+
+    // Focus the toast region
+    fireEvent.focus(region);
+    // Press Escape
+    fireEvent.keyDown(region, { key: "Escape" });
+    expect(screen.queryByText("Escape me")).not.toBeInTheDocument();
+  });
+
+  it("Escape dismisses only the focused toast in a stack", () => {
+    render(
+      <ToastProvider>
+        <Trigger message="First toast" />
+        <Trigger message="Second toast" />
+      </ToastProvider>,
+    );
+    const firstToast = screen.getByText("First toast");
+    const secondToast = screen.getByText("Second toast");
+    const regions = screen.getAllByRole("status");
+    // Focus the first toast region
+    fireEvent.focus(regions[0]);
+    fireEvent.keyDown(regions[0], { key: "Escape" });
+    expect(screen.queryByText("First toast")).not.toBeInTheDocument();
+    expect(screen.getByText("Second toast")).toBeInTheDocument();
+  });
+
   it("treats a second pause while already paused as a no-op (no double counting)", () => {
     render(
       <ToastProvider>

@@ -152,10 +152,12 @@ function ToastItem({
     <div
       role="status"
       aria-live="polite"
+      tabIndex={0}
       onMouseEnter={pauseTimer}
       onMouseLeave={startTimer}
       onFocus={pauseTimer}
       onBlur={startTimer}
+      onKeyDown={(e) => { if (e.key === 'Escape') onDismiss(toast.id); }}
       className={`pointer-events-auto w-full max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur ${styles}`}
     >
       <div className="flex items-start justify-between gap-3">
