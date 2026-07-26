@@ -64,6 +64,17 @@ describe("AnchorForm", () => {
     expect(screen.getByText("Register")).not.toBeDisabled();
   });
 
+  it("disables Reset while pending and re-enables it afterward", () => {
+    const { rerender } = render(<AnchorForm onSubmit={() => {}} pending />);
+    const resetButton = screen.getByText("Reset");
+
+    expect(resetButton).toBeDisabled();
+
+    rerender(<AnchorForm onSubmit={() => {}} pending={false} />);
+
+    expect(resetButton).toBeEnabled();
+  });
+
   it("clears field values, errors, and focuses the id field after reset", () => {
     const onSubmit = vi.fn();
     render(<AnchorForm onSubmit={onSubmit} />);

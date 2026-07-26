@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AnchorTable } from "./AnchorTable";
 import { Anchor } from "@/lib/types";
@@ -45,11 +45,47 @@ describe("AnchorTable", () => {
     expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<AnchorTable anchors={anchors} />);
+    const header = screen.getByLabelText("Sort by Anchor").closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(nameCells()).toEqual(["Charliec", "Alphaa", "Bravob"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by registered date on a second click", () => {
     render(<AnchorTable anchors={anchors} />);
     fireEvent.click(screen.getByLabelText("Sort by Registered"));
     fireEvent.click(screen.getByLabelText("Sort by Registered"));
     expect(nameCells()).toEqual(["Charliec", "Bravob", "Alphaa"]);
+  });
+
+  it("hydrates from an initialSort prop", () => {
+    render(
+      <AnchorTable
+        anchors={anchors}
+        initialSort={{ key: "name", direction: "asc" }}
+      />,
+    );
+    expect(nameCells()).toEqual(["Alphaa", "Bravob", "Charliec"]);
+  });
+
+  it("calls onSortChange when the sort state changes", () => {
+    const onSortChange = vi.fn();
+    render(
+      <AnchorTable anchors={anchors} onSortChange={onSortChange} />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Sort by Anchor"));
+    expect(onSortChange).toHaveBeenCalledWith({
+      key: "name",
+      direction: "asc",
+    });
   });
 
   it("applies a visible focus style to sortable header buttons", () => {

@@ -12,7 +12,10 @@ export function matchesQuery(
   fields: Array<string | number>,
   query: string,
 ): boolean {
-  const needle = query.trim().replace(/\s+/g, " ").toLowerCase();
-  if (needle === "") return true;
-  return fields.some((field) => String(field).toLowerCase().includes(needle));
+  const trimmed = query.trim().replace(/\s+/g, " ").toLowerCase();
+  if (trimmed === "") return true;
+  const terms = trimmed.split(" ");
+  return terms.every((term) =>
+    fields.some((field) => String(field).toLowerCase().includes(term))
+  );
 }

@@ -11,12 +11,16 @@ describe("GlobalErrorHandler", () => {
     vi.restoreAllMocks();
   });
 
-  it("listens for unhandledrejection events", () => {
+  it("listens for unhandledrejection and error events", () => {
     const addEventListenerSpy = vi.spyOn(window, "addEventListener");
     render(<GlobalErrorHandler />);
 
     expect(addEventListenerSpy).toHaveBeenCalledWith(
       "unhandledrejection",
+      expect.any(Function),
+    );
+    expect(addEventListenerSpy).toHaveBeenCalledWith(
+      "error",
       expect.any(Function),
     );
   });
@@ -58,7 +62,39 @@ describe("GlobalErrorHandler", () => {
     );
   });
 
-  it("removes the listener on unmount", () => {
+  it("reports synchronous window errors", () => {
+    render(<GlobalErrorHandler />);
+
+    const error = new Error("sync error");
+    const event = new ErrorEvent("error", {
+      error,
+      message: error.message,
+    });
+
+    window.dispatchEvent(event);
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("[ErrorReporter]"),
+      error,
+    );
+  });
+
+  it("reports missing Error objects from error events as string messages", () => {
+    render(<GlobalErrorHandler />);
+
+    const event = new ErrorEvent("error", {
+      message: "script error",
+    });
+
+    window.dispatchEvent(event);
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("[ErrorReporter]"),
+      expect.objectContaining({ message: "script error" }),
+    );
+  });
+
+  it("removes the listeners on unmount", () => {
     const removeEventListenerSpy = vi.spyOn(window, "removeEventListener");
     const { unmount } = render(<GlobalErrorHandler />);
 
@@ -66,6 +102,10 @@ describe("GlobalErrorHandler", () => {
 
     expect(removeEventListenerSpy).toHaveBeenCalledWith(
       "unhandledrejection",
+      expect.any(Function),
+    );
+    expect(removeEventListenerSpy).toHaveBeenCalledWith(
+      "error",
       expect.any(Function),
     );
   });

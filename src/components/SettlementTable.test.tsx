@@ -88,6 +88,19 @@ describe("SettlementTable sorting", () => {
     expect(amountCells()).toEqual(["100", "200", "300"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<SettlementTable settlements={settlements} />);
+    const header = screen.getByLabelText("Sort by Amount").closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Amount"));
+    expect(amountCells()).toEqual(["100", "200", "300"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(amountCells()).toEqual(["300", "100", "200"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by amount on a second click", () => {
     render(<SettlementTable settlements={settlements} />);
     fireEvent.click(screen.getByLabelText("Sort by Amount"));

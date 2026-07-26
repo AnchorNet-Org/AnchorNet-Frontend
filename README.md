@@ -92,7 +92,9 @@ accessible: it autofocuses the (non-destructive) cancel button, closes on
 **Escape**, and traps Tab focus between its two buttons. Tables show an
 animated skeleton while their first page of data is loading, instead of a
 bare "Loading…" line. Sortable column headers expose their current direction
-via `aria-sort` for assistive technology.
+via `aria-sort` for assistive technology. While a table is sorted, a **Reset sort**
+control appears in the active column header and restores the original row order in
+one action.
 
 A mock **wallet connect** lives in the header (a stand-in for a real Stellar
 wallet integration); the connected account is persisted to `localStorage` so

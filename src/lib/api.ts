@@ -42,7 +42,7 @@ export function buildQueryParams(
   return `?${usp.toString()}`;
 }
 
-/** Error thrown when the API responds with a non-2xx status. */
+/** Error thrown when the API response cannot be used by the client. */
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
@@ -66,6 +66,20 @@ async function parseError(res: Response): Promise<ApiRequestError> {
     return new ApiRequestError(res.status, code, message, requestId);
   } catch {
     return new ApiRequestError(res.status, "UNKNOWN", res.statusText, requestId);
+  }
+}
+
+async function parseSuccessfulJson<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    const requestId = res.headers?.get("x-request-id") ?? undefined;
+    throw new ApiRequestError(
+      res.status,
+      "INVALID_RESPONSE",
+      "The server returned an invalid response.",
+      requestId,
+    );
   }
 }
 
@@ -134,7 +148,7 @@ export function setDefaultTimeout(ms: number) {
 
 function composeSignals(
   timeoutMs: number,
-  callerSignal?: AbortSignal,
+  callerSignal?: AbortSignal | null,
 ): { signal: AbortSignal; cleanup: () => void; hasTimedOut: () => boolean } {
   const controller = new AbortController();
   let timedOut = false;
@@ -172,7 +186,8 @@ function composeSignals(
 
 /**
  * Performs a JSON request against the API and returns the parsed body.
- * Throws {@link ApiRequestError} on a non-2xx response.
+ * Throws {@link ApiRequestError} on a non-2xx response or when a successful
+ * response cannot be parsed as JSON.
  * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiRequest<T>(
@@ -206,7 +221,7 @@ export async function apiRequest<T>(
     }
     cleanup();
 
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return await parseSuccessfulJson<T>(res);
 
     lastError = await parseError(res);
 
