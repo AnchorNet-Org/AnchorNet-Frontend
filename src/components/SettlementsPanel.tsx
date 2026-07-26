@@ -47,6 +47,11 @@ function parsePageSize(raw: string): number {
   return PAGE_SIZE_OPTIONS.includes(n) ? n : PAGE_SIZE_OPTIONS[0];
 }
 
+/** Splits CSV text into non-empty rows. */
+function splitCsvRows(csv: string): string[] {
+  return csv.split("\n").filter((row) => row.length > 0);
+}
+
 /** Client panel for opening and managing settlements. */
 export function SettlementsPanel() {
   const [state, setState] = useState<ListState>({ status: "loading" });
@@ -225,7 +230,23 @@ export function SettlementsPanel() {
   async function handleExport() {
     setExporting(true);
     try {
-      const csvText = await exportSettlementsCsv({ pageSize });
+      const loadedPages =
+        state.status === "ready" ? state.pagination.page : 1;
+      const pages: string[] = [];
+      for (let p = 1; p <= loadedPages; p++) {
+        pages.push(
+          await exportSettlementsCsv({ page: p, pageSize }),
+        );
+      }
+      // The first page includes the CSV header; subsequent pages repeat it.
+      // Strip the header from all pages after the first before joining.
+      const [header, ...firstRows] = splitCsvRows(pages[0]);
+      const rows = [...firstRows];
+      for (let i = 1; i < pages.length; i++) {
+        const [, ...pageRows] = splitCsvRows(pages[i]);
+        rows.push(...pageRows);
+      }
+      const csvText = [header, ...rows].join("\n");
       const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -80,7 +80,10 @@ export function useAsync<T>(
         if (controller.signal.aborted) return;
         refreshWaiters.current.splice(0).forEach((resolve) => resolve());
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      refreshWaiters.current.splice(0).forEach((resolve) => resolve());
+    };
     // `load` is intentionally excluded; re-runs are driven by `reload`/`nonce`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);

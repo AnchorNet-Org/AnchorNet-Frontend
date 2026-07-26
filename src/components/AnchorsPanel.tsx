@@ -15,11 +15,22 @@ import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
 import { TableSkeleton } from "./TableSkeleton";
 import { AnchorForm } from "./AnchorForm";
-import { AnchorTable } from "./AnchorTable";
+import { AnchorTable, SortKey } from "./AnchorTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
+import { SortState, SortDirection } from "@/hooks/useSortableData";
 
 type StatusFilter = "all" | "active" | "inactive";
+
+const VALID_SORT_KEYS: ReadonlySet<string> = new Set<SortKey>([
+  "name",
+  "registeredAt",
+  "active",
+]);
+const VALID_SORT_DIRECTIONS: ReadonlySet<string> = new Set<SortDirection>([
+  "asc",
+  "desc",
+]);
 
 /**
  * Delay (ms) before a paused search query is applied to the filtered list.
@@ -53,6 +64,7 @@ export function AnchorsPanel() {
   const { state, reload } = useAsync(load);
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDeregisterId, setPendingDeregisterId] = useState<
     string | null
   >(null);
@@ -81,10 +93,29 @@ export function AnchorsPanel() {
 
   const [query, setQuery] = useQueryState("q", "");
 
+  // Sync sort column and direction to the URL querystring.
+  const [rawSort, setSortParam] = useQueryState("sort", "");
+  const [rawDir, setDirParam] = useQueryState("dir", "");
+
+  const isValidSortKey = (v: string): v is SortKey => VALID_SORT_KEYS.has(v);
+  const isValidDir = (v: string): v is SortDirection =>
+    VALID_SORT_DIRECTIONS.has(v);
+
+  const initialSort: SortState<SortKey> | null =
+    isValidSortKey(rawSort) && isValidDir(rawDir)
+      ? { key: rawSort, direction: rawDir }
+      : null;
+
+  // Correct invalid sort/dir params in the URL to the clean (unsorted) state.
+  useEffect(() => {
+    if (rawSort !== "" && !isValidSortKey(rawSort)) setSortParam("");
+    if (rawDir !== "" && !isValidDir(rawDir)) setDirParam("");
+  }, [rawSort, rawDir, setSortParam, setDirParam]);
+
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], debouncedQuery),
+          matchesQuery([anchor.id, anchor.name], query),
         )
       : [];
 
@@ -186,6 +217,11 @@ export function AnchorsPanel() {
                 anchors={filteredAnchors}
                 onDeregister={setPendingDeregisterId}
                 deregisteringIds={deregisteringIds}
+                initialSort={initialSort}
+                onSortChange={(s) => {
+                  setSortParam(s?.key ?? "");
+                  setDirParam(s?.direction ?? "");
+                }}
               />
             )}
           </>

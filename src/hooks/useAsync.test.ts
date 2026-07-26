@@ -164,6 +164,38 @@ describe("useAsync", () => {
     expect(result.current.state).toEqual({ status: "ready", data: "second" });
   });
 
+  it("resolves the refresh promise when the component unmounts before the fetch settles", async () => {
+    let resolveLoad!: (value: string) => void;
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce("first")
+      .mockImplementationOnce(
+        () => new Promise<string>((resolve) => (resolveLoad = resolve)),
+      );
+    const { result, unmount } = renderHook(() => useAsync(load));
+
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    let settled = false;
+    act(() => {
+      void result.current.refresh().then(() => {
+        settled = true;
+      });
+    });
+    expect(settled).toBe(false);
+
+    // Unmount before the fetch completes — cleanup should resolve the waiter.
+    unmount();
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(settled).toBe(true);
+
+    // Resolving after unmount should be harmless (no state updates attempted).
+    resolveLoad("second");
+  });
+
   it("resolves the refresh promise even when the fetch fails", async () => {
     const load = vi
       .fn()
