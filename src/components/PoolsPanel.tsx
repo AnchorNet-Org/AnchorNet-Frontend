@@ -18,12 +18,7 @@ import { EmptyState } from "./EmptyState";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
-/**
- * Optional props allowing a parent (e.g. DashboardContent) to supply pool data
- * it already fetched, avoiding a duplicate request. When omitted, the panel
- * fetches its own data.
- */
-export interface PoolsPanelProps {
+interface PoolsPanelProps {
   pools?: Pool[];
   isLoading?: boolean;
   error?: string;
