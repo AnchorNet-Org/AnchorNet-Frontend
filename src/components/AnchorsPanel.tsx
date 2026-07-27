@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -67,9 +67,9 @@ export function AnchorsPanel() {
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [pendingDeregisterId, setPendingDeregisterId] = useState<
-    string | null
-  >(null);
+  const [pendingDeregisterId, setPendingDeregisterId] = useState<string | null>(
+    null,
+  );
   // Ids of anchors with a deactivation request currently in flight. This is
   // mirrored into a ref so the short-circuit guard below always reads the
   // latest value, independent of which render produced the deregister closure.
@@ -119,6 +119,29 @@ export function AnchorsPanel() {
 
   const [query, setQuery] = useQueryState("q", "");
 
+  // Sort state also lives in the URL so a sorted view is shareable/bookmarkable.
+  const [sortParam, setSortParam] = useQueryState("sort", "");
+  const [dirParam, setDirParam] = useQueryState("dir", "");
+  const sortIsValid =
+    VALID_SORT_KEYS.has(sortParam) && VALID_SORT_DIRECTIONS.has(dirParam);
+  const initialSort: SortState<SortKey> | null = useMemo(
+    () =>
+      sortIsValid
+        ? { key: sortParam as SortKey, direction: dirParam as SortDirection }
+        : null,
+    // Only the first render's value is used to hydrate the table's sort state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Drop unusable sort params from the URL so the address bar matches the view.
+  useEffect(() => {
+    if ((sortParam || dirParam) && !sortIsValid) {
+      setSortParam("");
+      setDirParam("");
+    }
+  }, [sortParam, dirParam, sortIsValid, setSortParam, setDirParam]);
+
   // Debounce only the value that drives filtering so large anchor lists aren't
   // re-filtered on every keystroke; the input stays bound to `query` above.
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
@@ -126,7 +149,7 @@ export function AnchorsPanel() {
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], query),
+          matchesQuery([anchor.id, anchor.name], debouncedQuery),
         )
       : [];
 
@@ -139,7 +162,8 @@ export function AnchorsPanel() {
       reload();
       return true;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Registration failed";
+      const message =
+        err instanceof Error ? err.message : "Registration failed";
       notify("error", message);
       // Only surface id-specific failures (e.g. duplicate/conflict) inline on the
       // AnchorForm id field. Generic failures (network, 5xx, etc.) stay as toasts.
@@ -168,7 +192,10 @@ export function AnchorsPanel() {
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Deactivation failed");
+      notify(
+        "error",
+        err instanceof Error ? err.message : "Deactivation failed",
+      );
     } finally {
       deregisteringRef.current.delete(id);
       setDeregisteringIds((prev) => {
@@ -185,7 +212,11 @@ export function AnchorsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Register anchor
         </h2>
-        <AnchorForm onSubmit={register} pending={pending} serverError={serverError || undefined} />
+        <AnchorForm
+          onSubmit={register}
+          pending={pending}
+          serverError={serverError || undefined}
+        />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -203,7 +234,9 @@ export function AnchorsPanel() {
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
-                    ref={(el) => { filterRefs.current[i] = el; }}
+                    ref={(el) => {
+                      filterRefs.current[i] = el;
+                    }}
                     onClick={() => setStatus(f.value)}
                     onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
