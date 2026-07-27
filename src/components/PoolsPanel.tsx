@@ -18,6 +18,13 @@ import { EmptyState } from "./EmptyState";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
+interface PoolsPanelProps {
+  pools?: Pool[];
+  isLoading?: boolean;
+  error?: string;
+  onReload?: () => void;
+}
+
 /** Client panel that loads liquidity pools and renders summary stats. */
 export function PoolsPanel({
   pools: externalPools,
@@ -33,7 +40,7 @@ export function PoolsPanel({
       ? { status: "ready", data: externalPools }
       : { status: "loading" };
   const { state, reload: internalReload } = useAsync<Pool[]>(
-    externalPools !== undefined ? undefined : load,
+    load,
     initialState,
   );
   const [query, setQuery] = useQueryState("q", "");

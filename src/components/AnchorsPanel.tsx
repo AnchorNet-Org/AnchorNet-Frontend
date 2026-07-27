@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   fetchAnchors,
   registerAnchor,
@@ -67,9 +67,9 @@ export function AnchorsPanel() {
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [pendingDeregisterId, setPendingDeregisterId] = useState<
-    string | null
-  >(null);
+  const [pendingDeregisterId, setPendingDeregisterId] = useState<string | null>(
+    null,
+  );
   // Ids of anchors with a deactivation request currently in flight. This is
   // mirrored into a ref so the short-circuit guard below always reads the
   // latest value, independent of which render produced the deregister closure.
@@ -109,6 +109,15 @@ export function AnchorsPanel() {
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
 
+  const [sortParam, setSortParam] = useQueryState("sort", "");
+  const [dirParam, setDirParam] = useQueryState("dir", "");
+
+  const initialSort = useMemo<SortState<SortKey> | null>(() => {
+    if (!sortParam || !VALID_SORT_KEYS.has(sortParam)) return null;
+    const direction: SortDirection = dirParam === "desc" ? "desc" : "asc";
+    return { key: sortParam as SortKey, direction };
+  }, [sortParam, dirParam]);
+
   // When the URL carries an invalid status value, correct it to the effective
   // fallback ("all") so the address bar always reflects what is displayed.
   useEffect(() => {
@@ -139,7 +148,8 @@ export function AnchorsPanel() {
       reload();
       return true;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Registration failed";
+      const message =
+        err instanceof Error ? err.message : "Registration failed";
       notify("error", message);
       // Only surface id-specific failures (e.g. duplicate/conflict) inline on the
       // AnchorForm id field. Generic failures (network, 5xx, etc.) stay as toasts.
@@ -168,7 +178,10 @@ export function AnchorsPanel() {
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Deactivation failed");
+      notify(
+        "error",
+        err instanceof Error ? err.message : "Deactivation failed",
+      );
     } finally {
       deregisteringRef.current.delete(id);
       setDeregisteringIds((prev) => {
@@ -185,7 +198,11 @@ export function AnchorsPanel() {
         <h2 className="mb-3 text-sm font-semibold text-zinc-200">
           Register anchor
         </h2>
-        <AnchorForm onSubmit={register} pending={pending} serverError={serverError || undefined} />
+        <AnchorForm
+          onSubmit={register}
+          pending={pending}
+          serverError={serverError || undefined}
+        />
       </Card>
       <Card>
         {state.status === "loading" ? (
@@ -203,7 +220,9 @@ export function AnchorsPanel() {
                 {FILTERS.map((f, i) => (
                   <button
                     key={f.value}
-                    ref={(el) => { filterRefs.current[i] = el; }}
+                    ref={(el) => {
+                      filterRefs.current[i] = el;
+                    }}
                     onClick={() => setStatus(f.value)}
                     onKeyDown={(e) => onFilterKeyDown(e, i)}
                     aria-pressed={filter === f.value}
