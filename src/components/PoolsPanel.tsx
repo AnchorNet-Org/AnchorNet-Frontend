@@ -19,13 +19,22 @@ import { EmptyState } from "./EmptyState";
 const SEARCH_DEBOUNCE_MS = 200;
 
 /** Client panel that loads liquidity pools and renders summary stats. */
-export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }: PoolsPanelProps = {}) {
+export function PoolsPanel({
+  pools: externalPools,
+  isLoading,
+  error,
+  onReload,
+}: PoolsPanelProps = {}) {
   const load = useCallback((signal: AbortSignal) => fetchPools(signal), []);
-  const initialState: { status: "ready"; data: Pool[] } | { status: "loading" } = 
-    externalPools !== undefined ? { status: "ready", data: externalPools } : { status: "loading" };
+  const initialState:
+    | { status: "ready"; data: Pool[] }
+    | { status: "loading" } =
+    externalPools !== undefined
+      ? { status: "ready", data: externalPools }
+      : { status: "loading" };
   const { state, reload: internalReload } = useAsync<Pool[]>(
     externalPools !== undefined ? undefined : load,
-    initialState
+    initialState,
   );
   const [query, setQuery] = useQueryState("q", "");
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
@@ -33,15 +42,32 @@ export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }:
   useFocusShortcut("/", searchRef);
 
   // Use external data if provided, otherwise use internal fetch state
-  const pools = externalPools !== undefined ? externalPools : (state.status === "ready" ? state.data : []);
-  const loadingState = isLoading !== undefined ? isLoading : state.status === "loading";
-  const errorState = error !== undefined ? error : (state.status === "error" ? state.message : undefined);
+  const pools =
+    externalPools !== undefined
+      ? externalPools
+      : state.status === "ready"
+        ? state.data
+        : [];
+  const loadingState =
+    isLoading !== undefined ? isLoading : state.status === "loading";
+  const errorState =
+    error !== undefined
+      ? error
+      : state.status === "error"
+        ? state.message
+        : undefined;
   const reload = onReload !== undefined ? onReload : internalReload;
 
   // Hooks must run unconditionally on every render, so these are computed
   // here (before the early loading/error returns below) rather than after.
-  const totalLiquidity = useMemo(() => pools.reduce((sum, p) => sum + p.total, 0), [pools]);
-  const positions = useMemo(() => pools.reduce((sum, p) => sum + p.anchors, 0), [pools]);
+  const totalLiquidity = useMemo(
+    () => pools.reduce((sum, p) => sum + p.total, 0),
+    [pools],
+  );
+  const positions = useMemo(
+    () => pools.reduce((sum, p) => sum + p.anchors, 0),
+    [pools],
+  );
   const filteredPools = useMemo(
     () => pools.filter((pool) => matchesQuery([pool.asset], debouncedQuery)),
     [pools, debouncedQuery],
@@ -71,12 +97,6 @@ export function PoolsPanel({ pools: externalPools, isLoading, error, onReload }:
       </Card>
     );
   }
-
-  const totalLiquidity = state.data.reduce((sum, p) => sum + p.total, 0);
-  const positions = state.data.reduce((sum, p) => sum + p.anchors, 0);
-  const filteredPools = state.data.filter((pool) =>
-    matchesQuery([pool.asset], debouncedQuery),
-  );
 
   return (
     <div className="space-y-6">
