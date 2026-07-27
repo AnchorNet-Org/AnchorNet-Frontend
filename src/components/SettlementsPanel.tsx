@@ -8,8 +8,9 @@ import {
   cancelSettlement,
   exportSettlementsCsv,
 } from "@/lib/settlementsApi";
-import { Settlement, Pagination, Pool } from "@/lib/types";
+import { Settlement, Pagination } from "@/lib/types";
 import { fetchPools } from "@/lib/api";
+import { useAsync } from "@/hooks/useAsync";
 import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -66,7 +67,6 @@ export function SettlementsPanel() {
   const [pendingSettlementIds, setPendingSettlementIds] = useState<Set<number>>(
     () => new Set(),
   );
-  const [pools, setPools] = useState<Pool[]>([]);
   const [exporting, setExporting] = useState(false);
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -118,25 +118,15 @@ export function SettlementsPanel() {
     return () => controller.abort();
   }, [nonce, pageSize]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchPools(controller.signal)
-      .then(setPools)
-      .catch((err) => {
-        if (!controller.signal.aborted) {
-          console.error("Failed to load pools", err);
-        }
-      });
-    return () => controller.abort();
-  }, []);
+  const { state: poolsState, refresh: refreshPools } = useAsync(fetchPools);
 
   const availableLiquidity = useMemo(() => {
-    if (pools.length === 0) return undefined;
-    return pools.reduce((acc, pool) => {
+    if (poolsState.status !== "ready") return undefined;
+    return poolsState.data.reduce((acc, pool) => {
       acc[pool.asset] = pool.total;
       return acc;
     }, {} as Record<string, number>);
-  }, [pools]);
+  }, [poolsState]);
 
   /** Switches the page size and reloads from page 1. */
   function changePageSize(size: number) {
@@ -197,6 +187,11 @@ export function SettlementsPanel() {
           : previous,
       );
       notify("success", successMessage);
+      // Silently refresh pools after execute and cancel.
+      // Cancel releases reserved liquidity; execute is refreshed defensively
+      // (believed to not change liquidity based on UI copy, not verified
+      // against backend behavior).
+      void refreshPools().catch(() => {});
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -218,6 +213,9 @@ export function SettlementsPanel() {
       await openSettlement(input);
       notify("success", `Opened a settlement for ${input.amount} ${input.asset}.`);
       reload();
+      // Silently refresh pools in the background so availableLiquidity
+      // stays current after reserving liquidity.
+      void refreshPools().catch(() => {});
       return true;
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Request failed");
