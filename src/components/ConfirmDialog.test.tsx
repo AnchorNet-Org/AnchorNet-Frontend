@@ -1,6 +1,14 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConfirmDialog } from "./ConfirmDialog";
+import {
+  isConfirmDialogOpen,
+  resetConfirmDialogOpenState,
+} from "./confirmDialogOpenState";
+
+afterEach(() => {
+  resetConfirmDialogOpenState();
+});
 
 describe("ConfirmDialog", () => {
   it("renders nothing when closed", () => {
@@ -29,6 +37,24 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(screen.getByText("Deactivate anchor")).toBeInTheDocument();
     expect(screen.getByText('Deactivate anchor "a"?')).toBeInTheDocument();
+  });
+
+  it("clears the tracked open-dialog state when unmounted while open", () => {
+    const { unmount } = render(
+      <ConfirmDialog
+        open
+        title="Deactivate anchor"
+        message='Deactivate anchor "a"?'
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+
+    expect(isConfirmDialogOpen()).toBe(true);
+
+    unmount();
+
+    expect(isConfirmDialogOpen()).toBe(false);
   });
 
   it("uses default button labels unless overridden", () => {
@@ -191,7 +217,9 @@ describe("ConfirmDialog", () => {
         onCancel={onCancel}
       />,
     );
-    fireEvent.click(screen.getByRole("alertdialog").parentElement as HTMLElement);
+    fireEvent.click(
+      screen.getByRole("alertdialog").parentElement as HTMLElement,
+    );
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
