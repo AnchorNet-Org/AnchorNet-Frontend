@@ -100,6 +100,40 @@ describe("useFocusShortcut", () => {
     document.body.removeChild(outsideButton);
   });
 
+  it("focuses the target element after an open confirm dialog unmounts during navigation", () => {
+    const searchInput = document.createElement("input");
+    const outsideButton = document.createElement("button");
+    document.body.appendChild(searchInput);
+    document.body.appendChild(outsideButton);
+    outsideButton.focus();
+
+    const ref = createRef<HTMLInputElement>();
+    ref.current = searchInput;
+
+    renderHook(() => useFocusShortcut("/", ref));
+    const dialog = render(
+      createElement(ConfirmDialog, {
+        open: true,
+        title: "Deactivate anchor",
+        message: "Are you sure?",
+        onConfirm: () => {},
+        onCancel: () => {},
+      }),
+    );
+
+    pressKey("/");
+    expect(document.activeElement).toBe(screen.getByText("Cancel"));
+
+    dialog.unmount();
+
+    outsideButton.focus();
+    pressKey("/");
+    expect(document.activeElement).toBe(searchInput);
+
+    document.body.removeChild(searchInput);
+    document.body.removeChild(outsideButton);
+  });
+
   it("when multiple instances are bound to the same key, the last mounted instance retains focus", () => {
     const input1 = document.createElement("input");
     const input2 = document.createElement("input");
