@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SiteHeader } from "./SiteHeader";
 import { WalletProvider } from "./WalletProvider";
 import { ThemeProvider } from "./ThemeProvider";
+import { ToastProvider } from "./ToastProvider";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +32,11 @@ function renderHeader() {
   return render(
     <WalletProvider>
       <ThemeProvider>
-        <SiteHeader />
+        {/* Mirrors layout.tsx: the header (and its ConnectButton, which
+            raises wallet toasts) always renders inside ToastProvider. */}
+        <ToastProvider>
+          <SiteHeader />
+        </ToastProvider>
       </ThemeProvider>
     </WalletProvider>,
   );

@@ -128,6 +128,29 @@ export function AnchorsPanel() {
 
   const [query, setQuery] = useQueryState("q", "");
 
+  // Sort state also lives in the URL so a sorted view is shareable/bookmarkable.
+  const [sortParam, setSortParam] = useQueryState("sort", "");
+  const [dirParam, setDirParam] = useQueryState("dir", "");
+  const sortIsValid =
+    VALID_SORT_KEYS.has(sortParam) && VALID_SORT_DIRECTIONS.has(dirParam);
+  const initialSort: SortState<SortKey> | null = useMemo(
+    () =>
+      sortIsValid
+        ? { key: sortParam as SortKey, direction: dirParam as SortDirection }
+        : null,
+    // Only the first render's value is used to hydrate the table's sort state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Drop unusable sort params from the URL so the address bar matches the view.
+  useEffect(() => {
+    if ((sortParam || dirParam) && !sortIsValid) {
+      setSortParam("");
+      setDirParam("");
+    }
+  }, [sortParam, dirParam, sortIsValid, setSortParam, setDirParam]);
+
   // Debounce only the value that drives filtering so large anchor lists aren't
   // re-filtered on every keystroke; the input stays bound to `query` above.
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
@@ -135,7 +158,7 @@ export function AnchorsPanel() {
   const filteredAnchors =
     state.status === "ready"
       ? filterAnchors(state.data, filter).filter((anchor) =>
-          matchesQuery([anchor.id, anchor.name], query),
+          matchesQuery([anchor.id, anchor.name], debouncedQuery),
         )
       : [];
 
