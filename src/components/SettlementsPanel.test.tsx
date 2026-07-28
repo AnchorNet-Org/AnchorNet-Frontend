@@ -887,4 +887,71 @@ describe("SettlementsPanel", () => {
     const exportBtn = screen.getByRole("button", { name: "Export CSV" });
     expect(exportBtn).not.toHaveAttribute("title");
   });
+  it("rolls back optimistic update on execute failure", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    let rejectExecute!: (err: Error) => void;
+    const executePromise = new Promise<Settlement>((_, reject) => {
+      rejectExecute = reject;
+    });
+    vi.mocked(executeSettlement).mockImplementation(() => executePromise);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const row = screen.getByText("anchorA").closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    
+    // Execute
+    fireEvent.click(within(row).getByRole("button", { name: "Execute" }));
+
+    // Optimistically updated
+    expect(visibleBadge).toHaveTextContent("Executed");
+
+    // Fail the request
+    await act(async () => {
+      rejectExecute(new Error("Failed to execute"));
+    });
+
+    // Rolled back
+    expect(visibleBadge).toHaveTextContent("Pending");
+    expect(screen.getByText("Failed to execute")).toBeInTheDocument();
+  });
+
+  it("rolls back optimistic update on cancel failure", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    let rejectCancel!: (err: Error) => void;
+    const cancelPromise = new Promise<Settlement>((_, reject) => {
+      rejectCancel = reject;
+    });
+    vi.mocked(cancelSettlement).mockImplementation(() => cancelPromise);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const row = screen.getByText("anchorA").closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    
+    // Cancel
+    fireEvent.click(within(row).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    // Optimistically updated
+    expect(visibleBadge).toHaveTextContent("Cancelled");
+
+    // Fail the request
+    await act(async () => {
+      rejectCancel(new Error("Failed to cancel"));
+    });
+
+    // Rolled back
+    expect(visibleBadge).toHaveTextContent("Pending");
+    expect(screen.getByText("Failed to cancel")).toBeInTheDocument();
+  });
 });
+
