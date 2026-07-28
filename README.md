@@ -39,9 +39,30 @@ and point it at your backend and define your frontend base URL:
 
 ```bash
 cp .env.example .env.local
-# NEXT_PUBLIC_API_URL=http://localhost:3001
-# NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
+
+Then edit `.env.local` to set the required variables:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3001` | Base URL of the AnchorNet API backend |
+| `NEXT_PUBLIC_SITE_URL` | No | — | Base URL of the frontend (used for sitemap generation) |
+
+If `NEXT_PUBLIC_API_URL` is not set, the app defaults to
+`http://localhost:3001` and logs a console warning to remind you to configure
+your own backend URL for staging or production environments.
+
+> **Note:** Skipping this step in a deployed build will cause the app to
+> silently send requests to `http://localhost:3001`, which is almost certainly
+> not what you want. Always set `NEXT_PUBLIC_API_URL` explicitly in your
+> deployment environment.
 
 ## Pages
 

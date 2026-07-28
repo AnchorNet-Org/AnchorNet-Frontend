@@ -2,6 +2,10 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
+// Suppress the NEXT_PUBLIC_API_URL missing warning that fires as a module
+// side-effect when api.ts is imported in tests.
+vi.spyOn(console, "warn").mockImplementation(() => {});
+
 // Node.js v26 removed the implicit localStorage in jsdom; provide a mock so
 // tests that rely on window.localStorage (theme persistence, wallet session,
 // etc.) continue to work.

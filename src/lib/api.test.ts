@@ -8,6 +8,7 @@ import {
   isAbortError,
   retryDelayMs,
   buildQueryParams,
+  API_BASE_URL,
 } from "./api";
 
 function mockFetch(
@@ -580,6 +581,22 @@ describe("apiTextRequest — retry on network failure", () => {
     const err = await promise;
     expect(err).toBe(networkErr);
     expect(fn).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("API_BASE_URL fallback", () => {
+  it("falls back to http://localhost:3001 when NEXT_PUBLIC_API_URL is unset", () => {
+    expect(API_BASE_URL).toBe("http://localhost:3001");
+  });
+
+  it("produces a valid URL that can be parsed", () => {
+    expect(() => new URL(API_BASE_URL)).not.toThrow();
+  });
+
+  it("defaults to a localhost origin", () => {
+    const url = new URL(API_BASE_URL);
+    expect(url.hostname).toBe("localhost");
+    expect(url.port).toBe("3001");
   });
 });
 
