@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { fetchAnchor, deregisterAnchor } from "@/lib/anchorsApi";
+import { ApiRequestError } from "@/lib/api";
+import { Anchor } from "@/lib/types";
 import { useAsync } from "@/hooks/useAsync";
 import { useToast } from "@/hooks/useToast";
 import { formatDate } from "@/lib/format";
@@ -12,12 +14,21 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { CopyButton } from "./CopyButton";
 
 /** Full-record view of a single anchor, with a deactivate action. */
-export function AnchorDetail({ id }: { id: string }) {
+export function AnchorDetail({
+  id,
+  initialData,
+}: {
+  id: string;
+  initialData?: Anchor;
+}) {
   const load = useCallback(
     (signal: AbortSignal) => fetchAnchor(id, signal),
     [id],
   );
-  const { state, reload } = useAsync(load);
+  const { state, refresh } = useAsync(
+    load,
+    initialData ? { status: "ready", data: initialData } : undefined,
+  );
   const { notify } = useToast();
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -27,7 +38,8 @@ export function AnchorDetail({ id }: { id: string }) {
     try {
       await deregisterAnchor(id);
       notify("success", `Deactivated anchor "${id}".`);
-      reload();
+      // Use refresh() instead of reload() for a silent re-fetch without the loading spinner
+      await refresh();
     } catch (err: unknown) {
       notify("error", err instanceof Error ? err.message : "Deactivation failed");
     } finally {
@@ -46,9 +58,17 @@ export function AnchorDetail({ id }: { id: string }) {
       <Card>
         {state.status === "loading" ? (
           <Spinner label="Loading anchor…" />
-        ) : state.status === "error" ? (
-          <p className="text-sm text-red-400">{state.message}</p>
-        ) : (
+          ) : state.status === "error" ? (
+            <> {
+              state.error instanceof ApiRequestError && state.error.status === 404 ? (
+                <p className="text-sm text-red-400">
+                  Anchor not found. <Link href="/anchors" className="underline">Back to anchors</Link>
+                </p>
+              ) : (
+                <p className="text-sm text-red-400">{state.message}</p>
+              )
+            } </>
+          ) : (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-white">

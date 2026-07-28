@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { SettlementsPanel } from "./SettlementsPanel";
 import { ToastProvider } from "./ToastProvider";
@@ -15,16 +16,41 @@ import {
   cancelSettlement,
 } from "@/lib/settlementsApi";
 import { Settlement, SettlementsPage } from "@/lib/types";
+import { fetchPools } from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Mock next/navigation so the panel can run in jsdom.
+// ---------------------------------------------------------------------------
+
+const mockReplace = vi.fn();
+let mockSearchParamsString = "";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+  usePathname: () => "/settlements",
+}));
 
 vi.mock("@/lib/settlementsApi", () => ({
   fetchSettlements: vi.fn(),
   openSettlement: vi.fn(),
   executeSettlement: vi.fn(),
   cancelSettlement: vi.fn(),
+  exportSettlementsCsv: vi.fn(),
 }));
+
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    fetchPools: vi.fn(),
+  };
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParamsString = "";
+  vi.mocked(fetchPools).mockResolvedValue([]);
 });
 
 function page(
@@ -94,11 +120,169 @@ describe("SettlementsPanel", () => {
       target: { value: "anchorA" },
     });
 
+    // Filtering is debounced, so the non-matching row only drops out once the
+    // debounce delay has elapsed.
+    await waitFor(() =>
+      expect(screen.queryByText("other")).not.toBeInTheDocument(),
+    );
     expect(screen.getByText("anchorA")).toBeInTheDocument();
-    expect(screen.queryByText("other")).not.toBeInTheDocument();
   });
 
-  it("loads more settlements and appends them", async () => {
+  it("debounces the search filter, updating the list only after the delay", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchSettlements).mockResolvedValue(
+        page([sample, { ...sample, id: 2, anchor: "other" }]),
+      );
+
+      renderPanel();
+
+      // Flush the mocked fetch promise and mount effects so the list renders.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Search settlements"), {
+        target: { value: "anchorA" },
+      });
+
+      // The input reflects the keystroke immediately (no typing lag)...
+      expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+      // ...but the filtered list has not been recomputed yet.
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Just before the debounce elapses, the list is still unchanged.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+      expect(screen.getByText("other")).toBeInTheDocument();
+
+      // Once the debounce delay elapses, the non-matching row is filtered out.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.queryByText("other")).not.toBeInTheDocument();
+      expect(screen.getByText("anchorA")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("filters the list by settlement status", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([
+        sample,
+        { ...sample, id: 2, anchor: "anchorB", status: "executed" },
+      ]),
+    );
+
+    renderPanel();
+    await screen.findAllByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "executed" },
+    });
+
+    await waitFor(() => expect(screen.queryAllByText("anchorA")).toHaveLength(0));
+    expect(screen.getAllByText("anchorB").length).toBeGreaterThan(0);
+  });
+
+  it("shows the no-data empty state without a clear-filters action", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+
+    renderPanel();
+
+    expect(
+      await screen.findByText("No settlements yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a no-results empty state when the search matches nothing", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "zzz" },
+    });
+
+    // The no-results state appears only after the debounce delay elapses.
+    await waitFor(() =>
+      expect(
+        screen.getByText("No settlements match your search."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("No settlements yet.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("anchorA")).toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("");
+  });
+
+  it("footer reflects filtered count after loading all pages and applying search", async () => {
+    // First page returns one settlement, second page returns another
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([{ ...sample, id: 2, anchor: "other" }], { page: 2, totalPages: 2, total: 2 }),
+      );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Load the second page
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
+    // Both rows should be visible now
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.getByText("other")).toBeInTheDocument();
+
+    // Apply a search that matches only the first settlement
+    fireEvent.change(screen.getByLabelText("Search settlements"), { target: { value: "anchorA" } });
+
+    // Footer should reflect filtered count (1)
+    expect(await screen.findByText(/showing all 1 settlement/i)).toBeInTheDocument();
+  });
+
+  it("announces the number of newly-loaded settlements via a live region", async () => {
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 3 }))
+      .mockResolvedValueOnce(
+        page(
+          [
+            { ...sample, id: 2 },
+            { ...sample, id: 3 },
+          ],
+          { page: 2, totalPages: 2, total: 3 },
+        ),
+      );
+
+    const { container } = renderPanel();
+    await screen.findByText("anchorA");
+
+    // No announcement on the initial page load.
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+
+    await waitFor(() =>
+      expect(liveRegion).toHaveTextContent("Loaded 2 more settlements"),
+    );
+  });
+
+  it("announces a singular label when one settlement is appended", async () => {
     vi.mocked(fetchSettlements)
       .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
       .mockResolvedValueOnce(
@@ -110,8 +294,23 @@ describe("SettlementsPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /load more/i }));
 
-    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
-    expect(screen.getAllByText("anchorA")).toHaveLength(2);
+    expect(
+      await screen.findByText("Loaded 1 more settlement"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not announce when Load more fails", async () => {
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockRejectedValueOnce(new Error("boom"));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+
+    expect(await screen.findByText("boom")).toBeInTheDocument();
+    expect(screen.queryByText(/loaded \d+ more settlement/i)).not.toBeInTheDocument();
   });
 
   it("shows a summary once every settlement is loaded", async () => {
@@ -151,19 +350,273 @@ describe("SettlementsPanel", () => {
     );
   });
 
-  it("executes a settlement", async () => {
+  it("surfaces a field-level error on failed open settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockRejectedValue(new Error("Insufficient liquidity"));
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => {
+      expect(openSettlement).toHaveBeenCalledWith({
+        anchor: "anchorA",
+        asset: "USDC",
+        amount: 400,
+      });
+      // Failure surfaces via the toast notification; the form itself keeps
+      // the entered values instead of clearing them (see SettlementForm's
+      // own "does not clear amount field if submission fails" coverage).
+      expect(screen.getByText("Insufficient liquidity")).toBeInTheDocument();
+    });
+  });
+
+  it("blocks opening a settlement when amount exceeds available liquidity", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(fetchPools).mockResolvedValue([{ asset: "USDC", total: 100, anchors: 1 }]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    expect(await screen.findByText("Amount exceeds available liquidity.")).toBeInTheDocument();
+    expect(openSettlement).not.toHaveBeenCalled();
+  });
+
+  it("re-fetches pools after opening a settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("re-fetches pools after cancelling a settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(cancelSettlement).mockResolvedValue({
+      ...sample,
+      status: "cancelled",
+    });
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+    await screen.findByTestId("settlement-card");
+
+    const card = screen.getByTestId("settlement-card");
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("re-fetches pools after executing a settlement", async () => {
     vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
     vi.mocked(executeSettlement).mockResolvedValue({
       ...sample,
+      status: "executed",
+    });
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+    await screen.findByTestId("settlement-card");
+
+    const card = screen.getByTestId("settlement-card");
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Execute" }),
+    );
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("degrades to no client-side liquidity check when background pool refresh fails", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(fetchPools)
+      .mockResolvedValueOnce([{ asset: "USDC", total: 100, anchors: 1 }])
+      .mockRejectedValueOnce(new Error("network error"));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    // First open: amount (50) is within liquidity (100), passes client check
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(1));
+    // Post-action refresh fails — poolsState transitions to error
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+
+    // Second open: amount (200) exceeds original liquidity (100),
+    // but the client-side check is now disabled — no "Amount exceeds" error.
+    // The backend remains authoritative and will reject if truly over-limit.
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorB" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByText("Amount exceeds available liquidity."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("updates only the executed row and announces its new status", async () => {
+    const other = { ...sample, id: 2, anchor: "anchorB" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample, other]));
+    vi.mocked(executeSettlement).mockResolvedValue({
+      ...sample,
+      anchor: "anchorA-updated",
       status: "executed",
     });
 
     renderPanel();
     await screen.findByText("anchorA");
 
-    fireEvent.click(screen.getByRole("button", { name: "Execute" }));
+    const table = screen.getByRole("table");
+    const row = screen
+      .getByText("anchorA")
+      .closest("tr") as HTMLTableRowElement;
+    const otherRow = screen
+      .getByText("anchorB")
+      .closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    const liveRegion = visibleBadge.nextElementSibling as HTMLElement;
+    const otherBadge = within(otherRow).getByText("Pending");
+    const otherLiveRegion = otherBadge.nextElementSibling as HTMLElement;
+    expect(liveRegion).toBeEmptyDOMElement();
+    expect(otherLiveRegion).toBeEmptyDOMElement();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Execute" }));
 
     await waitFor(() => expect(executeSettlement).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Executed"));
+
+    expect(
+      screen.queryByLabelText("Loading table data"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBe(table);
+    expect(screen.getByText("anchorA-updated").closest("tr")).toBe(row);
+    expect(visibleBadge).toBeInTheDocument();
+    expect(liveRegion).toBeInTheDocument();
+    expect(visibleBadge).toHaveTextContent("Executed");
+    expect(screen.getByText("anchorB").closest("tr")).toBe(otherRow);
+    expect(otherBadge).toHaveTextContent("Pending");
+    expect(otherLiveRegion).toBeEmptyDOMElement();
+    expect(fetchSettlements).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Executed settlement #1.")).toBeInTheDocument();
+  });
+
+  it("updates a loaded later-page row without discarding loaded settlements", async () => {
+    const laterPageSettlement = {
+      ...sample,
+      id: 2,
+      anchor: "anchorB",
+    };
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([laterPageSettlement], { page: 2, totalPages: 2, total: 2 }),
+      );
+    vi.mocked(cancelSettlement).mockResolvedValue({
+      ...laterPageSettlement,
+      status: "cancelled",
+    });
+
+    renderPanel();
+    await screen.findByText("anchorA");
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    await screen.findByText("anchorB");
+
+    const table = screen.getByRole("table");
+    const firstRow = screen
+      .getByText("anchorA")
+      .closest("tr") as HTMLTableRowElement;
+    const laterRow = screen
+      .getByText("anchorB")
+      .closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(laterRow).getByText("Pending");
+    const liveRegion = visibleBadge.nextElementSibling as HTMLElement;
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    fireEvent.click(within(laterRow).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Cancelled"));
+
+    expect(screen.queryByLabelText("Loading table data")).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBe(table);
+    expect(screen.getByText("anchorA").closest("tr")).toBe(firstRow);
+    expect(screen.getByText("anchorB").closest("tr")).toBe(laterRow);
+    expect(visibleBadge).toHaveTextContent("Cancelled");
+    expect(liveRegion).toBeInTheDocument();
+    expect(fetchSettlements).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Cancelled settlement #2.")).toBeInTheDocument();
   });
 
   it("confirms before cancelling a settlement", async () => {
@@ -185,4 +638,441 @@ describe("SettlementsPanel", () => {
     );
     await waitFor(() => expect(cancelSettlement).toHaveBeenCalledWith(1));
   });
+
+  // -------------------------------------------------------------------------
+  // URL querystring hydration tests
+  // -------------------------------------------------------------------------
+
+  it("hydrates the search query from the URL querystring on load", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Only the matching row visible; search box pre-filled
+    expect(screen.getByText("anchorA")).toBeInTheDocument();
+    expect(screen.queryByText("other")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search settlements")).toHaveValue("anchorA");
+  });
+
+  it("hydrates the page size from the URL querystring on load", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The page-size selector should reflect the URL value
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("25");
+    // fetchSettlements must have been called with pageSize=25
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+  });
+
+  it("updates the URL querystring when the search query changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Search settlements"), {
+      target: { value: "foo" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("q=foo"),
+      { scroll: false },
+    );
+  });
+
+  it("updates the URL querystring when the page size changes", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "25" },
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining("pageSize=25"),
+      { scroll: false },
+    );
+  });
+
+  it("ignores an invalid pageSize param and falls back to the default", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Invalid value — should fall back to 10
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 10 }),
+    );
+  });
+
+  it("corrects the URL when the pageSize param is invalid", async () => {
+    mockSearchParamsString = "pageSize=999";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // The effective page size is the default (10), so the invalid param is
+    // written back — and since 10 is the default it is stripped entirely,
+    // leaving a clean URL instead of the misleading pageSize=999.
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/settlements", {
+        scroll: false,
+      }),
+    );
+    // The selector reflects the effective value.
+    expect(screen.getByLabelText("Rows per page")).toHaveValue("10");
+  });
+
+  it("does not rewrite the URL when the pageSize param is already valid", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // A valid value is respected exactly; no correction is written.
+    expect(fetchSettlements).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 25 }),
+    );
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("removes the pageSize param from the URL when set to the default", async () => {
+    mockSearchParamsString = "pageSize=25";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.change(screen.getByLabelText("Rows per page"), {
+      target: { value: "10" },
+    });
+
+    // 10 is the default so the param should be stripped
+    expect(mockReplace).toHaveBeenCalledWith("/settlements", { scroll: false });
+  });
+
+  it("clears a stale Load-more error after a successful open", async () => {
+    // First load: two pages available.
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      // Load-more fails.
+      .mockRejectedValueOnce(new Error("network timeout"))
+      // reload() after open: back to page 1.
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Trigger a failing "Load more".
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(await screen.findByText("network timeout")).toBeInTheDocument();
+
+    // Now successfully open a settlement (fills the form and submits).
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "400" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(1));
+
+    // The stale error must be gone once the list has been refreshed.
+    await waitFor(() =>
+      expect(screen.queryByText("network timeout")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("exposes an accessible group for the toolbar controls", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const toolbar = screen.getByRole("search", {
+      name: "Settlements export, page size, and search",
+    });
+    expect(toolbar).toContainElement(
+      screen.getByRole("button", { name: "Export CSV" }),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Rows per page"),
+    );
+    expect(toolbar).toContainElement(
+      screen.getByLabelText("Search settlements"),
+    );
+  });
+
+  it("exports settlements as CSV", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(exportSettlementsCsv).mockResolvedValue("id,anchor\n1,anchorA");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    });
+
+    // Check if the download link was created
+    expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("exports all loaded pages as a single CSV after Load more", async () => {
+    const { exportSettlementsCsv } = await import("@/lib/settlementsApi");
+    vi.mocked(fetchSettlements)
+      .mockResolvedValueOnce(page([sample], { totalPages: 2, total: 2 }))
+      .mockResolvedValueOnce(
+        page([{ ...sample, id: 2, anchor: "anchorB" }], {
+          page: 2,
+          totalPages: 2,
+          total: 2,
+        }),
+      );
+    vi.mocked(exportSettlementsCsv)
+      .mockResolvedValueOnce("id,anchor\n1,anchorA")
+      .mockResolvedValueOnce("id,anchor\n2,anchorB");
+
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock");
+    const revokeObjectURL = vi.fn();
+    global.URL.createObjectURL = createObjectURL;
+    global.URL.revokeObjectURL = revokeObjectURL;
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    // Load the second page
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    await waitFor(() => expect(fetchSettlements).toHaveBeenCalledTimes(2));
+
+    // Now export — should request both pages
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => {
+      expect(exportSettlementsCsv).toHaveBeenCalledTimes(2);
+    });
+    expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(exportSettlementsCsv).toHaveBeenCalledWith({ page: 2, pageSize: 10 });
+
+    // The CSV should have the header once plus both data rows
+    const blobArg = vi.mocked(createObjectURL).mock.calls[0][0] as Blob;
+    // Read the blob content via a reader
+    const text = await blobArg.text();
+    expect(text).toBe("id,anchor\n1,anchorA\n2,anchorB");
+  });
+
+  it("disables row action buttons while executeSettlement is in flight, keeping other rows enabled", async () => {
+    const s1 = { ...sample, id: 1, anchor: "anchor1" };
+    const s2 = { ...sample, id: 2, anchor: "anchor2" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([s1, s2]));
+
+    let resolveExecute!: (val: Settlement) => void;
+    const executePromise = new Promise<Settlement>((resolve) => {
+      resolveExecute = resolve;
+    });
+    vi.mocked(executeSettlement).mockImplementation(() => executePromise);
+
+    renderPanel();
+    await screen.findByText("anchor1");
+
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
+
+    const row1Execute = within(row1).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
+    const row2Execute = within(row2).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(row2).getByRole("button", { name: "Cancel" });
+
+    expect(row1Execute).not.toBeDisabled();
+    expect(row1Cancel).not.toBeDisabled();
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    fireEvent.click(row1Execute);
+
+    await waitFor(() => expect(row1Execute).toBeDisabled());
+    expect(row1Cancel).toBeDisabled();
+
+    // Other row remains enabled
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    // Resolve the promise
+    resolveExecute({ ...s1, status: "executed" });
+
+    await waitFor(() => {
+      expect(executeSettlement).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("disables row action buttons while cancelSettlement is in flight, keeping other rows enabled", async () => {
+    const s1 = { ...sample, id: 1, anchor: "anchor1" };
+    const s2 = { ...sample, id: 2, anchor: "anchor2" };
+    vi.mocked(fetchSettlements).mockResolvedValue(page([s1, s2]));
+
+    let resolveCancel!: (val: Settlement) => void;
+    const cancelPromise = new Promise<Settlement>((resolve) => {
+      resolveCancel = resolve;
+    });
+    vi.mocked(cancelSettlement).mockImplementation(() => cancelPromise);
+
+    renderPanel();
+    await screen.findByText("anchor1");
+
+    const table = within(document.querySelector("table")!);
+    const row1 = table.getByText("anchor1").closest("tr")!;
+    const row2 = table.getByText("anchor2").closest("tr")!;
+
+    const row1Execute = within(row1).getByRole("button", { name: "Execute" });
+    const row1Cancel = within(row1).getByRole("button", { name: "Cancel" });
+    const row2Execute = within(row2).getByRole("button", { name: "Execute" });
+    const row2Cancel = within(row2).getByRole("button", { name: "Cancel" });
+
+    fireEvent.click(row1Cancel);
+
+    // Confirm dialog is open
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Cancel settlement" }),
+    );
+
+    await waitFor(() => expect(row1Execute).toBeDisabled());
+    expect(row1Cancel).toBeDisabled();
+
+    // Other row remains enabled
+    expect(row2Execute).not.toBeDisabled();
+    expect(row2Cancel).not.toBeDisabled();
+
+    // Resolve cancel promise
+    resolveCancel({ ...s1, status: "cancelled" });
+
+    await waitFor(() => {
+      expect(cancelSettlement).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("indicates when the CSV export ignores the active search filter", async () => {
+    mockSearchParamsString = "q=anchorA";
+    vi.mocked(fetchSettlements).mockResolvedValue(
+      page([sample, { ...sample, id: 2, anchor: "other" }]),
+    );
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).toHaveAttribute(
+      "title",
+      "Export includes all settlements, ignoring the current search filter"
+    );
+  });
+
+  it("does not indicate ignored search filter when query is empty", async () => {
+    mockSearchParamsString = "";
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const exportBtn = screen.getByRole("button", { name: "Export CSV" });
+    expect(exportBtn).not.toHaveAttribute("title");
+  });
+  it("rolls back optimistic update on execute failure", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    let rejectExecute!: (err: Error) => void;
+    const executePromise = new Promise<Settlement>((_, reject) => {
+      rejectExecute = reject;
+    });
+    vi.mocked(executeSettlement).mockImplementation(() => executePromise);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const row = screen.getByText("anchorA").closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    
+    // Execute
+    fireEvent.click(within(row).getByRole("button", { name: "Execute" }));
+
+    // Optimistically updated
+    expect(visibleBadge).toHaveTextContent("Executed");
+
+    // Fail the request
+    await act(async () => {
+      rejectExecute(new Error("Failed to execute"));
+    });
+
+    // Rolled back
+    expect(visibleBadge).toHaveTextContent("Pending");
+    expect(screen.getByText("Failed to execute")).toBeInTheDocument();
+  });
+
+  it("rolls back optimistic update on cancel failure", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+
+    let rejectCancel!: (err: Error) => void;
+    const cancelPromise = new Promise<Settlement>((_, reject) => {
+      rejectCancel = reject;
+    });
+    vi.mocked(cancelSettlement).mockImplementation(() => cancelPromise);
+
+    renderPanel();
+    await screen.findByText("anchorA");
+
+    const row = screen.getByText("anchorA").closest("tr") as HTMLTableRowElement;
+    const visibleBadge = within(row).getByText("Pending");
+    
+    // Cancel
+    fireEvent.click(within(row).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    // Optimistically updated
+    expect(visibleBadge).toHaveTextContent("Cancelled");
+
+    // Fail the request
+    await act(async () => {
+      rejectCancel(new Error("Failed to cancel"));
+    });
+
+    // Rolled back
+    expect(visibleBadge).toHaveTextContent("Pending");
+    expect(screen.getByText("Failed to cancel")).toBeInTheDocument();
+  });
 });
+

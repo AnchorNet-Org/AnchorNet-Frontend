@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  markConfirmDialogClosed,
+  markConfirmDialogOpen,
+} from "./confirmDialogOpenState";
 
 /** A modal dialog gating a destructive action behind an explicit confirm step. */
 export function ConfirmDialog({
@@ -22,11 +26,33 @@ export function ConfirmDialog({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
-  // Escape dismisses the dialog, and the cancel button (the non-destructive
-  // choice) receives focus on open so a stray Enter keypress can't confirm.
+  // Capture the currently focused element when dialog opens, and keep the
+  // module-level open-dialog counter balanced if this component unmounts while
+  // still open (for example, during navigation away from the current route).
   useEffect(() => {
     if (!open) return;
+
+    triggerRef.current = document.activeElement as HTMLElement;
+    markConfirmDialogOpen();
+
+    return () => {
+      markConfirmDialogClosed();
+    };
+  }, [open]);
+
+  // Focus management
+  useEffect(() => {
+    if (!open) {
+      // Restore focus to the original trigger when dialog closes
+      if (triggerRef.current && document.body.contains(triggerRef.current)) {
+        triggerRef.current.focus();
+      }
+      return;
+    }
+
+    // Focus cancel button on open (safer default)
     cancelRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
@@ -36,10 +62,10 @@ export function ConfirmDialog({
         return;
       }
       if (event.key === "Tab") {
-        // Trap focus within the dialog's two buttons.
         const first = cancelRef.current;
         const last = confirmRef.current;
         if (!first || !last) return;
+
         if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();
@@ -57,13 +83,17 @@ export function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      onClick={onCancel}
+    >
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-message"
         className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
       >
         <h2
           id="confirm-dialog-title"
@@ -79,6 +109,12 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={onCancel}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onCancel();
+              }
+            }}
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700"
           >
             {cancelLabel}
@@ -87,6 +123,12 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             onClick={onConfirm}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onConfirm();
+              }
+            }}
             className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500"
           >
             {confirmLabel}

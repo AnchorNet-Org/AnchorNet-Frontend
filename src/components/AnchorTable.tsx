@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { Anchor } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { useSortableData, SortState } from "@/hooks/useSortableData";
 import { EmptyState } from "./EmptyState";
+import { SortableHeader } from "./SortableHeader";
+import { SortAnnouncer } from "./SortAnnouncer";
 
-type SortKey = "name" | "registeredAt" | "active";
+export type SortKey = "name" | "registeredAt" | "active";
 
 function getSortValue(anchor: Anchor, key: SortKey): string | number {
   if (key === "active") return anchor.active ? 1 : 0;
@@ -17,21 +20,49 @@ function getSortValue(anchor: Anchor, key: SortKey): string | number {
 export function AnchorTable({
   anchors,
   onDeregister,
+  deregisteringIds,
+  initialSort,
+  onSortChange,
 }: {
   anchors: Anchor[];
   onDeregister?: (id: string) => void;
+  /** Ids of anchors with a deactivation currently in flight. */
+  deregisteringIds?: Set<string>;
+  /** Hydrate the sort state from the URL on first render. */
+  initialSort?: SortState<SortKey> | null;
+  /** Called when the user clicks a column header to cycle the sort. */
+  onSortChange?: (sort: SortState<SortKey> | null) => void;
 }) {
-  const { sorted, sort, requestSort } = useSortableData<Anchor, SortKey>(
+  const { sorted, sort, requestSort, clearSort } = useSortableData<Anchor, SortKey>(
     anchors,
     getSortValue,
+    initialSort ?? null,
   );
+
+  // Sync sort changes back to the parent (URL querystring).
+  const prevSortRef = useRef(sort);
+  useEffect(() => {
+    if (onSortChange && prevSortRef.current !== sort) {
+      onSortChange(sort);
+    }
+    prevSortRef.current = sort;
+  }, [sort, onSortChange]);
 
   if (anchors.length === 0) {
     return <EmptyState message="No anchors registered yet." />;
   }
 
   return (
-    <table className="w-full text-left text-sm">
+    <>
+      <SortAnnouncer
+        sort={sort}
+        labels={{
+          name: "Anchor",
+          registeredAt: "Registered",
+          active: "Status",
+        }}
+      />
+      <table className="w-full text-left text-sm">
       <thead>
         <tr className="border-b border-zinc-800 text-zinc-400">
           <SortableHeader
@@ -39,18 +70,21 @@ export function AnchorTable({
             sortKey="name"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Registered"
             sortKey="registeredAt"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           <SortableHeader
             label="Status"
             sortKey="active"
             sort={sort}
             onSort={requestSort}
+            onClearSort={clearSort}
           />
           {onDeregister ? <th className="py-2" /> : null}
         </tr>
@@ -80,7 +114,13 @@ export function AnchorTable({
                 {anchor.active ? (
                   <button
                     onClick={() => onDeregister(anchor.id)}
-                    className="rounded-md px-2 py-1 text-xs text-red-400 hover:text-red-300"
+                    disabled={deregisteringIds?.has(anchor.id) ?? false}
+                    aria-disabled={deregisteringIds?.has(anchor.id) ?? false}
+                    className={`rounded-md px-2 py-1 text-xs ${
+                      deregisteringIds?.has(anchor.id)
+                        ? "cursor-not-allowed text-red-400/40"
+                        : "text-red-400 hover:text-red-300"
+                    }`}
                   >
                     Deactivate
                   </button>
@@ -91,39 +131,7 @@ export function AnchorTable({
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 
-function SortableHeader({
-  label,
-  sortKey,
-  sort,
-  onSort,
-}: {
-  label: string;
-  sortKey: SortKey;
-  sort: SortState<SortKey> | null;
-  onSort: (key: SortKey) => void;
-}) {
-  const active = sort?.key === sortKey;
-  const indicator = active ? (sort?.direction === "asc" ? "▲" : "▼") : "";
-  const ariaSort = !active
-    ? "none"
-    : sort?.direction === "asc"
-      ? "ascending"
-      : "descending";
-
-  return (
-    <th className="py-2 font-medium" aria-sort={ariaSort}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        aria-label={`Sort by ${label}`}
-        className="flex items-center gap-1 hover:text-zinc-200"
-      >
-        {label}
-        <span className="w-2 text-[10px] text-zinc-500">{indicator}</span>
-      </button>
-    </th>
-  );
-}

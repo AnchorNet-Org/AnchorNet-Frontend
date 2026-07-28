@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { SiteHeader } from "@/components/SiteHeader";
+import { PageShell } from "@/components/PageShell";
 import { MetricsBar } from "@/components/MetricsBar";
-import { PoolsPanel } from "@/components/PoolsPanel";
-import { QuoteForm } from "@/components/QuoteForm";
+import { DashboardContent } from "@/components/DashboardContent";
 
 export const metadata: Metadata = {
   title: "Dashboard – AnchorNet",
@@ -11,9 +10,7 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
-      <SiteHeader />
-      <main className="mx-auto max-w-5xl px-6 py-12">
+    <PageShell maxWidth="max-w-5xl">
         <h1 className="text-2xl font-bold tracking-tight text-white">
           Liquidity Dashboard
         </h1>
@@ -25,15 +22,9 @@ export default function DashboardPage() {
           <MetricsBar />
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <PoolsPanel />
-          </div>
-          <div>
-            <QuoteForm />
-          </div>
+        <div className="mt-6">
+          <DashboardContent />
         </div>
-      </main>
-    </div>
+    </PageShell>
   );
 }

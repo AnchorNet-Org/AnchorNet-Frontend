@@ -9,14 +9,6 @@ export interface Pool {
   anchors: number;
 }
 
-/** A single anchor's liquidity contribution to an asset pool. */
-export interface LiquidityEntry {
-  anchor: string;
-  asset: string;
-  amount: number;
-  updatedAt: string;
-}
-
 /** A request to route `amount` of `asset` through available liquidity. */
 export interface QuoteRequest {
   asset: string;
@@ -45,8 +37,16 @@ export interface Anchor {
   active: boolean;
 }
 
+/** All valid lifecycle states of a settlement, in canonical order. */
+export const SETTLEMENT_STATUSES = ["pending", "executed", "cancelled"] as const;
+
+/** Runtime type guard for SettlementStatus values. */
+export function isSettlementStatus(value: unknown): value is SettlementStatus {
+  return typeof value === "string" && (SETTLEMENT_STATUSES as readonly string[]).includes(value);
+}
+
 /** Lifecycle state of a settlement. */
-export type SettlementStatus = "pending" | "executed" | "cancelled";
+export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
 
 /** A cross-anchor settlement drawing on pool liquidity. */
 export interface Settlement {

@@ -9,7 +9,7 @@ Web app for **AnchorNet** — the liquidity coordination network for Stellar anc
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+ (matches CI; see `.nvmrc`)
 - npm (or yarn/pnpm)
 
 ## Setup
@@ -18,6 +18,10 @@ Web app for **AnchorNet** — the liquidity coordination network for Stellar anc
 # Clone the repo (or use your fork)
 git clone <repo-url>
 cd anchornet-frontend
+
+# (Optional) switch to the project's Node version automatically
+# with nvm, fnm, or Volta — all read .nvmrc
+nvm use   # or: fnm use
 
 # Install dependencies
 npm install
@@ -31,11 +35,12 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Configuration
 
 The dashboard talks to the AnchorNet API. Copy `.env.example` to `.env.local`
-and point it at your backend:
+and point it at your backend and define your frontend base URL:
 
 ```bash
 cp .env.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:3001
+# NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 ## Pages
@@ -75,14 +80,21 @@ Registering an anchor or opening a settlement is validated inline (missing or
 invalid fields are flagged next to the input before the request is sent), and
 every mutating action — register, deactivate, open, execute, cancel — reports
 success or failure via a **toast notification** in the bottom corner of the
-screen. Deactivating an anchor or cancelling a settlement first opens a
+screen. Toasts are announced via `aria-live="polite"` and auto-dismiss after
+five seconds, but pause on hover or keyboard focus and resume the countdown
+from the remaining time when the pointer leaves or focus is lost — so a toast
+never lingers indefinitely just because it was glanced at, and never vanishes
+while a user is reading or interacting with it. Deactivating an anchor or
+cancelling a settlement first opens a
 **confirmation dialog**, on both the list panels and their detail pages, so a
 misclick can't silently take a destructive action. The dialog is keyboard
 accessible: it autofocuses the (non-destructive) cancel button, closes on
 **Escape**, and traps Tab focus between its two buttons. Tables show an
 animated skeleton while their first page of data is loading, instead of a
 bare "Loading…" line. Sortable column headers expose their current direction
-via `aria-sort` for assistive technology.
+via `aria-sort` for assistive technology. While a table is sorted, a **Reset sort**
+control appears in the active column header and restores the original row order in
+one action.
 
 A mock **wallet connect** lives in the header (a stand-in for a real Stellar
 wallet integration); the connected account is persisted to `localStorage` so
@@ -118,6 +130,19 @@ accessibility — the pool distribution bar, and small presentational pieces
 like `Spinner`/`StatCard`/`EmptyState`/`RouteError`) is covered with
 [React Testing Library](https://testing-library.com/react) under a jsdom
 environment. Lint and build are separate CI steps.
+
+### Running Tests
+
+- **Run all tests:** `npm test`
+- **Run a single test file:** `npm test -- src/components/AnchorForm.test.tsx`
+- **Run in watch mode:** `npm test -- --watch` (re-runs tests on file changes)
+- **Run in watch mode for a single file:** `npm test -- src/components/AnchorForm.test.tsx --watch`
+
+### Coverage
+
+- **Generate coverage report:** `npm test -- --coverage`
+
+**Note:** No coverage threshold is currently enforced in CI or package.json. The project follows a guideline of maintaining ~95% test coverage across the codebase.
 
 ## Scripts
 

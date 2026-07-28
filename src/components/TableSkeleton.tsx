@@ -8,7 +8,7 @@ export function TableSkeleton({
 }) {
   return (
     <div
-      className="animate-pulse"
+      className="animate-pulse motion-reduce:animate-none"
       role="status"
       aria-label="Loading table data"
     >

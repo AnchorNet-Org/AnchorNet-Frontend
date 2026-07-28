@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AnchorForm } from "./AnchorForm";
 
 describe("AnchorForm", () => {
@@ -28,8 +28,8 @@ describe("AnchorForm", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("submits the trimmed id and optional name, then resets the form", () => {
-    const onSubmit = vi.fn();
+  it("submits the trimmed id and optional name, then resets the form", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
     render(<AnchorForm onSubmit={onSubmit} />);
 
     const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
@@ -38,16 +38,112 @@ describe("AnchorForm", () => {
     fireEvent.change(nameInput, { target: { value: " Example Anchor " } });
     fireEvent.click(screen.getByText("Register"));
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      id: "anchor.example.org",
-      name: "Example Anchor",
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        id: "anchor.example.org",
+        name: "Example Anchor",
+      });
+      expect(idInput).toHaveValue("");
+      expect(nameInput).toHaveValue("");
     });
-    expect(idInput).toHaveValue("");
-    expect(nameInput).toHaveValue("");
   });
 
   it("disables the submit button while pending", () => {
     render(<AnchorForm onSubmit={() => {}} pending />);
-    expect(screen.getByText("Register")).toBeDisabled();
+    expect(screen.getByText("Registering…")).toBeDisabled();
+  });
+
+  it("shows pending-state text and reverts when pending changes", () => {
+    const { rerender } = render(<AnchorForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Register")).toBeInTheDocument();
+    rerender(<AnchorForm onSubmit={() => {}} pending />);
+    expect(screen.getByText("Registering…")).toBeInTheDocument();
+    expect(screen.getByText("Registering…")).toBeDisabled();
+    rerender(<AnchorForm onSubmit={() => {}} pending={false} />);
+    expect(screen.getByText("Register")).toBeInTheDocument();
+    expect(screen.getByText("Register")).not.toBeDisabled();
+  });
+
+  it("disables Reset while pending and re-enables it afterward", () => {
+    const { rerender } = render(<AnchorForm onSubmit={() => {}} pending />);
+    const resetButton = screen.getByText("Reset");
+
+    expect(resetButton).toBeDisabled();
+
+    rerender(<AnchorForm onSubmit={() => {}} pending={false} />);
+
+    expect(resetButton).toBeEnabled();
+  });
+
+  it("clears field values, errors, and focuses the id field after reset", () => {
+    const onSubmit = vi.fn();
+    render(<AnchorForm onSubmit={onSubmit} />);
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    const nameInput = screen.getByPlaceholderText("Display name (optional)");
+
+    // Fill in an invalid id and a name, then attempt to submit to trigger errors.
+    fireEvent.change(idInput, { target: { value: "bad id!" } });
+    fireEvent.change(nameInput, { target: { value: "Some Name" } });
+    fireEvent.click(screen.getByText("Register"));
+
+    // Confirm the error is visible and onSubmit was not called.
+    expect(
+      screen.getByText("Use only letters, numbers, dots, dashes or underscores."),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Click Reset.
+    fireEvent.click(screen.getByText("Reset"));
+
+    // All field values must be cleared.
+    expect(idInput).toHaveValue("");
+    expect(nameInput).toHaveValue("");
+
+    // All error messages must be gone.
+    expect(
+      screen.queryByText("Use only letters, numbers, dots, dashes or underscores."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Anchor id is required."),
+    ).not.toBeInTheDocument();
+
+    // The id input must receive focus.
+    expect(idInput).toHaveFocus();
+
+    // Reset must not have triggered a network request.
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not submit when Reset is clicked", () => {
+    const onSubmit = vi.fn();
+    render(<AnchorForm onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id (account or domain)"), {
+      target: { value: "valid-anchor" },
+    });
+    fireEvent.click(screen.getByText("Reset"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("displays an externally-supplied serverError", () => {
+    render(<AnchorForm onSubmit={vi.fn()} serverError="Duplicate ID" />);
+    expect(screen.getByText("Duplicate ID")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Anchor id (account or domain)")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not reset the form when onSubmit returns false", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(false);
+    render(<AnchorForm onSubmit={onSubmit} />);
+
+    const idInput = screen.getByPlaceholderText("Anchor id (account or domain)");
+    fireEvent.change(idInput, { target: { value: "valid-anchor" } });
+    fireEvent.click(screen.getByText("Register"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+      expect(idInput).toHaveValue("valid-anchor");
+    });
   });
 });

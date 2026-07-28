@@ -1,12 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { reportError } from "@/lib/errorReporter";
 import { Card } from "./Card";
 
-/**
- * Shared fallback rendered by a route segment's `error.tsx` boundary when a
- * page throws while rendering. `reset` re-renders the segment in place,
- * without a full page reload.
- */
 export function RouteError({
   error,
   reset,
@@ -16,12 +14,26 @@ export function RouteError({
   reset: () => void;
   title?: string;
 }) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    reportError(error, {
+      route: pathname,
+      requestId: (error as { requestId?: string }).requestId,
+    });
+  }, [error, pathname]);
+
   return (
     <Card>
       <h2 className="text-sm font-semibold text-red-400">{title}</h2>
       <p className="mt-2 text-sm text-zinc-400">
         {error.message || "An unexpected error occurred."}
       </p>
+      {error.digest && (
+        <p className="mt-1 text-xs text-zinc-500">
+          Reference: {error.digest}
+        </p>
+      )}
       <button
         type="button"
         onClick={reset}
@@ -29,6 +41,14 @@ export function RouteError({
       >
         Try again
       </button>
+      <a
+        href="https://github.com/AnchorNet-Org/issues"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 block text-xs text-zinc-500 underline hover:text-zinc-400"
+      >
+        Still having trouble? Report an issue
+      </a>
     </Card>
   );
 }

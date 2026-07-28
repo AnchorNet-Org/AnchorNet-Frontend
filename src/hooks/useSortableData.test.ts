@@ -68,4 +68,49 @@ describe("useSortableData", () => {
     act(() => result.current.requestSort("amount"));
     expect(rows).toEqual(original);
   });
+  it("clearSort resets to unsorted from ascending", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    act(() => result.current.requestSort("amount"));
+    expect(result.current.sort).toEqual({ key: "amount", direction: "asc" });
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
+  it("clearSort resets to unsorted from descending", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    act(() => result.current.requestSort("amount"));
+    act(() => result.current.requestSort("amount"));
+    expect(result.current.sort).toEqual({ key: "amount", direction: "desc" });
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
+  it("clearSort is a no-op when already unsorted", () => {
+    const { result } = renderHook(() => useSortableData(rows, getValue));
+    expect(result.current.sort).toBeNull();
+
+    act(() => result.current.clearSort());
+    expect(result.current.sort).toBeNull();
+    expect(result.current.sorted.map((r) => r.id)).toEqual([1, 2, 3]);
+  });
+
+  it('persists sort across items replacement', () => {
+    const { result, rerender } = renderHook(
+      ({ data }) => useSortableData(data, getValue),
+      { initialProps: { data: rows } }
+    );
+    // set sort to ascending amount
+    act(() => result.current.requestSort('amount'));
+    expect(result.current.sort).toEqual({ key: 'amount', direction: 'asc' });
+    // create a new array with same items but different order
+    const newRows = [rows[2], rows[0], rows[1]];
+    rerender({ data: newRows });
+    // expect sorting still applied to new data
+    expect(result.current.sorted.map((r) => r.amount)).toEqual([10, 20, 30]);
+    expect(result.current.sort).toEqual({ key: 'amount', direction: 'asc' });
+  });
 });
