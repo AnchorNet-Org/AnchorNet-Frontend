@@ -25,6 +25,8 @@ export function useAsync<T>(
   reload: () => void;
   /** Re-fetches; resolves when the triggered fetch settles (never rejects). */
   refresh: () => Promise<void>;
+  /** Allows optimistically setting the state without re-fetching. */
+  mutate: (newState: AsyncState<T> | ((prev: AsyncState<T>) => AsyncState<T>)) => void;
 } {
   const [state, setState] = useState<AsyncState<T>>(initialState);
   const [nonce, setNonce] = useState(0);
@@ -88,5 +90,5 @@ export function useAsync<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
-  return { state, reload, refresh };
+  return { state, reload, refresh, mutate: setState };
 }
