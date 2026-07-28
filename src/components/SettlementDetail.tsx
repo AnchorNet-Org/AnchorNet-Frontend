@@ -30,7 +30,7 @@ export function SettlementDetail({
     (signal: AbortSignal) => fetchSettlement(id, signal),
     [id],
   );
-  const { state, refresh } = useAsync(
+  const { state, refresh, mutate } = useAsync(
     load,
     initialData ? { status: "ready", data: initialData } : undefined,
   );
@@ -38,13 +38,22 @@ export function SettlementDetail({
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
-  async function run(action: () => Promise<unknown>, successMessage: string) {
+  async function run(
+    action: () => Promise<unknown>,
+    optimisticStatus: Settlement["status"],
+    successMessage: string
+  ) {
+    const previousState = state;
     try {
       setPending(true);
+      if (state.status === "ready") {
+        mutate({ ...state, data: { ...state.data, status: optimisticStatus } });
+      }
       await action();
       notify("success", successMessage);
       await refresh();
     } catch (err: unknown) {
+      mutate(previousState);
       notify("error", err instanceof Error ? err.message : "Request failed");
     } finally {
       setPending(false);
@@ -113,6 +122,7 @@ export function SettlementDetail({
                   onClick={() =>
                     run(
                       () => executeSettlement(state.data.id),
+                      "executed",
                       `Executed settlement #${state.data.id}.`,
                     )
                   }
@@ -145,6 +155,7 @@ export function SettlementDetail({
             setConfirmCancelOpen(false);
             run(
               () => cancelSettlement(state.data.id),
+              "cancelled",
               `Cancelled settlement #${state.data.id}.`,
             );
           }}
