@@ -39,9 +39,13 @@ vi.mock("@/lib/settlementsApi", () => ({
   exportSettlementsCsv: vi.fn(),
 }));
 
-vi.mock("@/lib/api", () => ({
-  fetchPools: vi.fn(),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    fetchPools: vi.fn(),
+  };
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -398,6 +402,123 @@ describe("SettlementsPanel", () => {
 
     expect(await screen.findByText("Amount exceeds available liquidity.")).toBeInTheDocument();
     expect(openSettlement).not.toHaveBeenCalled();
+  });
+
+  it("re-fetches pools after opening a settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("re-fetches pools after cancelling a settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(cancelSettlement).mockResolvedValue({
+      ...sample,
+      status: "cancelled",
+    });
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+    await screen.findByTestId("settlement-card");
+
+    const card = screen.getByTestId("settlement-card");
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Cancel settlement",
+      }),
+    );
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("re-fetches pools after executing a settlement", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([sample]));
+    vi.mocked(executeSettlement).mockResolvedValue({
+      ...sample,
+      status: "executed",
+    });
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 100, anchors: 1 },
+    ]);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+    await screen.findByTestId("settlement-card");
+
+    const card = screen.getByTestId("settlement-card");
+    fireEvent.click(
+      within(card).getByRole("button", { name: "Execute" }),
+    );
+
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+  });
+
+  it("degrades to no client-side liquidity check when background pool refresh fails", async () => {
+    vi.mocked(fetchSettlements).mockResolvedValue(page([]));
+    vi.mocked(fetchPools)
+      .mockResolvedValueOnce([{ asset: "USDC", total: 100, anchors: 1 }])
+      .mockRejectedValueOnce(new Error("network error"));
+    vi.mocked(openSettlement).mockResolvedValue(sample);
+
+    renderPanel();
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(1));
+
+    // First open: amount (50) is within liquidity (100), passes client check
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorA" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(1));
+    // Post-action refresh fails — poolsState transitions to error
+    await waitFor(() => expect(fetchPools).toHaveBeenCalledTimes(2));
+
+    // Second open: amount (200) exceeds original liquidity (100),
+    // but the client-side check is now disabled — no "Amount exceeds" error.
+    // The backend remains authoritative and will reject if truly over-limit.
+    fireEvent.change(screen.getByPlaceholderText("Anchor id"), {
+      target: { value: "anchorB" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Asset"), {
+      target: { value: "USDC" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Amount"), {
+      target: { value: "200" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open settlement/i }));
+
+    await waitFor(() => expect(openSettlement).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByText("Amount exceeds available liquidity."),
+    ).not.toBeInTheDocument();
   });
 
   it("updates only the executed row and announces its new status", async () => {
