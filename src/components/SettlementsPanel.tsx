@@ -179,9 +179,23 @@ export function SettlementsPanel() {
   async function runSettlementAction(
     id: number,
     action: () => Promise<Settlement>,
+    optimisticStatus: Settlement["status"],
     successMessage: string,
   ) {
     setPendingSettlementIds((prev) => new Set(prev).add(id));
+    
+    let previousSettlement: Settlement | undefined;
+    setState((previous) => {
+      if (previous.status !== "ready") return previous;
+      previousSettlement = previous.settlements.find((s) => s.id === id);
+      return {
+        ...previous,
+        settlements: previous.settlements.map((s) =>
+          s.id === id ? { ...s, status: optimisticStatus } : s
+        ),
+      };
+    });
+
     try {
       const updatedSettlement = await action();
       setState((previous) =>
@@ -198,6 +212,19 @@ export function SettlementsPanel() {
       );
       notify("success", successMessage);
     } catch (err: unknown) {
+      if (previousSettlement) {
+        const rollbackSettlement = previousSettlement;
+        setState((previous) =>
+          previous.status === "ready"
+            ? {
+                ...previous,
+                settlements: previous.settlements.map((s) =>
+                  s.id === id ? rollbackSettlement : s
+                ),
+              }
+            : previous,
+        );
+      }
       notify("error", err instanceof Error ? err.message : "Request failed");
     } finally {
       setPendingSettlementIds((prev) => {
@@ -352,6 +379,7 @@ export function SettlementsPanel() {
                   runSettlementAction(
                     id,
                     () => executeSettlement(id),
+                    "executed",
                     `Executed settlement #${id}.`,
                   )
                 }
@@ -394,6 +422,7 @@ export function SettlementsPanel() {
             runSettlementAction(
               id,
               () => cancelSettlement(id),
+              "cancelled",
               `Cancelled settlement #${id}.`,
             );
           }
