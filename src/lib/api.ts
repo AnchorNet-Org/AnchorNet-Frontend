@@ -10,6 +10,15 @@ import { Pool, Quote, QuoteRequest, ApiErrorBody } from "./types";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+let warnedMissingApiUrl = false;
+if (!process.env.NEXT_PUBLIC_API_URL && !warnedMissingApiUrl) {
+  warnedMissingApiUrl = true;
+  console.warn(
+    "NEXT_PUBLIC_API_URL is not set. Defaulting to http://localhost:3001. " +
+      "Copy .env.example to .env.local and set NEXT_PUBLIC_API_URL for your environment.",
+  );
+}
+
 // ── Shared query-string builder ─────────────────────────────────────────────
 
 /**
