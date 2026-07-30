@@ -75,7 +75,7 @@ export function PoolTable({ pools }: { pools: Pool[] }) {
       </tbody>
       <tfoot>
         <tr className="border-t border-zinc-700">
-          <td className="py-2 text-zinc-400 font-medium">Total</td>
+          <td className="py-2 text-zinc-400 font-medium">Total (visible rows)</td>
           <td className="py-2 text-zinc-200 font-medium">
             {formatAmount(pools.reduce((sum, p) => sum + p.total, 0))}
           </td>

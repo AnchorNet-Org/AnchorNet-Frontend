@@ -74,7 +74,7 @@ describe("PoolTable", () => {
     // XLM(300) + USDC(100) + EURC(200) = 600; anchors 2+5+1 = 8
     const tfoot = document.querySelector("tfoot");
     expect(tfoot).toBeInTheDocument();
-    expect(tfoot).toHaveTextContent("Total");
+    expect(tfoot).toHaveTextContent("Total (visible rows)");
     expect(tfoot).toHaveTextContent("600");
     expect(tfoot).toHaveTextContent("8 anchors");
   });
