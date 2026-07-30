@@ -39,9 +39,30 @@ and point it at your backend and define your frontend base URL:
 
 ```bash
 cp .env.example .env.local
-# NEXT_PUBLIC_API_URL=http://localhost:3001
-# NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
+
+Then edit `.env.local` to set the required variables:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3001` | Base URL of the AnchorNet API backend |
+| `NEXT_PUBLIC_SITE_URL` | No | — | Base URL of the frontend (used for sitemap generation) |
+
+If `NEXT_PUBLIC_API_URL` is not set, the app defaults to
+`http://localhost:3001` and logs a console warning to remind you to configure
+your own backend URL for staging or production environments.
+
+> **Note:** Skipping this step in a deployed build will cause the app to
+> silently send requests to `http://localhost:3001`, which is almost certainly
+> not what you want. Always set `NEXT_PUBLIC_API_URL` explicitly in your
+> deployment environment.
 
 ## Pages
 
@@ -92,7 +113,9 @@ accessible: it autofocuses the (non-destructive) cancel button, closes on
 **Escape**, and traps Tab focus between its two buttons. Tables show an
 animated skeleton while their first page of data is loading, instead of a
 bare "Loading…" line. Sortable column headers expose their current direction
-via `aria-sort` for assistive technology.
+via `aria-sort` for assistive technology. While a table is sorted, a **Reset sort**
+control appears in the active column header and restores the original row order in
+one action.
 
 A mock **wallet connect** lives in the header (a stand-in for a real Stellar
 wallet integration); the connected account is persisted to `localStorage` so

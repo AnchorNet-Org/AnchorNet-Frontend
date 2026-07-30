@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pool } from "@/lib/types";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatPercent } from "@/lib/format";
 
 /** Colors cycled across assets in the distribution bar and legend. */
 const BAR_COLORS = [
@@ -87,7 +87,7 @@ export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
               }}
             >
               <title>
-                {`${pool.asset}: ${formatAmount(pool.total)} (${pct.toFixed(1)}%)`}
+                {`${pool.asset}: ${formatAmount(pool.total)} (${formatPercent(pct)})`}
               </title>
             </rect>
           );
@@ -110,7 +110,7 @@ export function PoolDistributionBar({ pools }: { pools: Pool[] }) {
                 style={{ backgroundColor: color }}
               />
               <span>
-                {pool.asset} · {pct.toFixed(1)}%
+                {pool.asset} · {formatPercent(pct)}
               </span>
             </button>
           </li>

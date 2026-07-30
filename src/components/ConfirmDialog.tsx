@@ -28,14 +28,18 @@ export function ConfirmDialog({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
-  // Capture the currently focused element when dialog opens
+  // Capture the currently focused element when dialog opens, and keep the
+  // module-level open-dialog counter balanced if this component unmounts while
+  // still open (for example, during navigation away from the current route).
   useEffect(() => {
-    if (open) {
-      triggerRef.current = document.activeElement as HTMLElement;
-      markConfirmDialogOpen();
-    } else {
+    if (!open) return;
+
+    triggerRef.current = document.activeElement as HTMLElement;
+    markConfirmDialogOpen();
+
+    return () => {
       markConfirmDialogClosed();
-    }
+    };
   }, [open]);
 
   // Focus management

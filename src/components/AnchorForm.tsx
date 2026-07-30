@@ -43,11 +43,18 @@ export function AnchorForm({
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
+    let cancelled = false;
     if (serverError) {
+      Promise.resolve().then(() => {
+        if (!cancelled) setErrors((prev) => ({ ...prev, id: serverError }));
+      });
       // Mirrors an externally supplied server validation error into the form.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrors((prev) => ({ ...prev, id: serverError }));
     }
+    return () => {
+      cancelled = true;
+    };
   }, [serverError]);
 
   const idRef = useRef<HTMLInputElement>(null);
@@ -109,11 +116,12 @@ export function AnchorForm({
         disabled={pending}
         className="h-fit shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
       >
-        Register
+        {pending ? "Registering…" : "Register"}
       </button>
       <button
         type="button"
         onClick={reset}
+        disabled={pending}
         className="h-fit shrink-0 rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
       >
         Reset

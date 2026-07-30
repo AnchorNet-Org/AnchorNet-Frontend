@@ -11,6 +11,9 @@ export type AsyncState<T> =
 /**
  * Runs an abortable async loader on mount and exposes a `reload` trigger.
  *
+ * If seeded with an already-"ready" `initialState`, the initial fetch on mount
+ * is skipped; re-running is driven by `reload` or `refresh`.
+ *
  * The loader is expected to be behaviourally stable; re-running is driven by
  * `reload`, which also surfaces a loading state.
  */
@@ -22,6 +25,8 @@ export function useAsync<T>(
   reload: () => void;
   /** Re-fetches; resolves when the triggered fetch settles (never rejects). */
   refresh: () => Promise<void>;
+  /** Allows optimistically setting the state without re-fetching. */
+  mutate: (newState: AsyncState<T> | ((prev: AsyncState<T>) => AsyncState<T>)) => void;
 } {
   const [state, setState] = useState<AsyncState<T>>(initialState);
   const [nonce, setNonce] = useState(0);
@@ -43,6 +48,10 @@ export function useAsync<T>(
   );
 
   useEffect(() => {
+    if (nonce === 0 && initialState.status === "ready") {
+      return;
+    }
+
     const controller = new AbortController();
     load(controller.signal)
       .then((data) => setState({ status: "ready", data }))
@@ -73,10 +82,13 @@ export function useAsync<T>(
         if (controller.signal.aborted) return;
         refreshWaiters.current.splice(0).forEach((resolve) => resolve());
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      refreshWaiters.current.splice(0).forEach((resolve) => resolve());
+    };
     // `load` is intentionally excluded; re-runs are driven by `reload`/`nonce`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
-  return { state, reload, refresh };
+  return { state, reload, refresh, mutate: setState };
 }

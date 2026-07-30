@@ -5,6 +5,12 @@ import { PoolsPanel } from "./PoolsPanel";
 import * as api from "@/lib/api";
 import { Pool } from "@/lib/types";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(""),
+  usePathname: () => "/dashboard",
+}));
+
 const pools: Pool[] = [
   { asset: "XLM", total: 300, anchors: 2 },
   { asset: "USDC", total: 100, anchors: 5 },
@@ -41,6 +47,21 @@ describe("PoolTable", () => {
     expect(assetCells()).toEqual(["USDC", "EURC", "XLM"]);
   });
 
+  it("resets an active sort directly to the original row order", () => {
+    render(<PoolTable pools={pools} />);
+    const header = screen
+      .getByLabelText("Sort by Total liquidity")
+      .closest("th");
+
+    expect(screen.queryByRole("button", { name: "Reset sort" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(assetCells()).toEqual(["USDC", "EURC", "XLM"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+    expect(assetCells()).toEqual(["XLM", "USDC", "EURC"]);
+    expect(header).toHaveAttribute("aria-sort", "none");
+  });
+
   it("sorts descending by total liquidity on a second click", () => {
     render(<PoolTable pools={pools} />);
     fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
@@ -53,7 +74,7 @@ describe("PoolTable", () => {
     // XLM(300) + USDC(100) + EURC(200) = 600; anchors 2+5+1 = 8
     const tfoot = document.querySelector("tfoot");
     expect(tfoot).toBeInTheDocument();
-    expect(tfoot).toHaveTextContent("Total");
+    expect(tfoot).toHaveTextContent("Total (visible rows)");
     expect(tfoot).toHaveTextContent("600");
     expect(tfoot).toHaveTextContent("8 anchors");
   });
@@ -70,6 +91,96 @@ describe("PoolTable", () => {
     expect(tfoot).toHaveTextContent("500");
     expect(tfoot).toHaveTextContent("3 anchors");
   });
+
+  it("announces the new sort key and direction via a live region when clicked", () => {
+    const { container } = render(<PoolTable pools={pools} />);
+
+    // No announcement on initial render
+    const liveRegion = container.querySelector('[aria-live="polite"].sr-only');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveTextContent("");
+
+    // Click to sort by Total liquidity
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorted by Total liquidity, ascending");
+
+    // Click again to cycle to descending
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorted by Total liquidity, descending");
+
+    // Click again to cycle to unsorted
+    fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+    expect(liveRegion).toHaveTextContent("Sorting cleared");
+  });
+
+  describe("initial aria-sort accessibility", () => {
+    it("announces all column headers as aria-sort=none on initial render", () => {
+      render(<PoolTable pools={pools} />);
+
+      const assetHeader = screen.getByLabelText("Sort by Asset").closest("th");
+      const liquidityHeader = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+      const anchorsHeader = screen.getByLabelText("Sort by Anchors").closest("th");
+
+      expect(assetHeader).toHaveAttribute("aria-sort", "none");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "none");
+      expect(anchorsHeader).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("updates aria-sort to ascending on first column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      expect(header).toHaveAttribute("aria-sort", "none");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "ascending");
+    });
+
+    it("updates aria-sort to descending on second column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "descending");
+    });
+
+    it("resets aria-sort to none on third column click", () => {
+      render(<PoolTable pools={pools} />);
+      const header = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(header).toHaveAttribute("aria-sort", "none");
+    });
+
+    it("switches aria-sort between columns when clicking different headers", () => {
+      render(<PoolTable pools={pools} />);
+      const assetHeader = screen.getByLabelText("Sort by Asset").closest("th");
+      const liquidityHeader = screen
+        .getByLabelText("Sort by Total liquidity")
+        .closest("th");
+
+      // Click Asset (first sort)
+      fireEvent.click(screen.getByLabelText("Sort by Asset"));
+      expect(assetHeader).toHaveAttribute("aria-sort", "ascending");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "none");
+
+      // Click Liquidity (switches to that column, ascending)
+      fireEvent.click(screen.getByLabelText("Sort by Total liquidity"));
+      expect(assetHeader).toHaveAttribute("aria-sort", "none");
+      expect(liquidityHeader).toHaveAttribute("aria-sort", "ascending");
+    });
+  });
 });
 
 describe("PoolsPanel", () => {
@@ -78,16 +189,16 @@ describe("PoolsPanel", () => {
     render(<PoolsPanel />);
     // wait for loading -> ready state
     await waitFor(() =>
-      expect(screen.getByRole("search", { name: "Pools search and refresh" })).toBeInTheDocument(),
+      expect(screen.getByRole("search", { name: "Pools search" })).toBeInTheDocument(),
     );
     const searchRegion = screen.getByRole("search", {
-      name: "Pools search and refresh",
+      name: "Pools search",
     });
     expect(
       within(searchRegion).getByRole("textbox", { name: "Search pools" }),
     ).toBeInTheDocument();
     expect(
-      within(searchRegion).getByRole("button", { name: /refresh/i }),
+      screen.getByRole("button", { name: /refresh/i }),
     ).toBeInTheDocument();
   });
 });

@@ -273,3 +273,73 @@ describe("wallet session persistence", () => {
     expect(loadAccount()).toEqual({ address: wellFormedAddress });
   });
 });
+
+describe("wallet storage errors", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("loadAccount handles storage errors gracefully", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("saveAccount handles storage errors gracefully", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    expect(() => saveAccount({ address: "G12345" })).not.toThrow();
+  });
+
+  it("clearAccount handles storage errors gracefully", () => {
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    expect(() => clearAccount()).not.toThrow();
+  });
+
+  it("mockAddress handles storage errors gracefully when generating seed", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    expect(mockAddress()).toMatch(/^G[A-Z0-9]{55}$/);
+  });
+});
+
+describe("SSR environment (window undefined)", () => {
+  let originalWindow: typeof window;
+
+  beforeEach(() => {
+    originalWindow = global.window;
+    // @ts-expect-error - overriding global for test
+    delete global.window;
+  });
+
+  afterEach(() => {
+    global.window = originalWindow;
+  });
+
+  it("loadAccount returns null safely", () => {
+    expect(loadAccount()).toBeNull();
+  });
+
+  it("saveAccount returns safely", () => {
+    expect(() => saveAccount({ address: "G12345" })).not.toThrow();
+  });
+
+  it("clearAccount returns safely", () => {
+    expect(() => clearAccount()).not.toThrow();
+  });
+
+  it("mockAddress returns safely", () => {
+    expect(() => mockAddress()).not.toThrow();
+    // In SSR mockAddress uses "ANCHORNET" seed
+    expect(mockAddress()).toMatch(/^G[A-Z0-9]{55}$/);
+  });
+});

@@ -82,4 +82,27 @@ describe("SortableHeader", () => {
     expect(onSort).toHaveBeenCalledOnce();
     expect(onSort).toHaveBeenCalledWith("asset");
   });
+
+  it("shows a reset control only for the active sort and calls its callback", () => {
+    const onClearSort = vi.fn();
+    render(
+      <table>
+        <thead>
+          <tr>
+            <SortableHeader
+              label="Asset"
+              sortKey="asset"
+              sort={{ key: "asset", direction: "asc" }}
+              onSort={vi.fn()}
+              onClearSort={onClearSort}
+            />
+          </tr>
+        </thead>
+      </table>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset sort" }));
+
+    expect(onClearSort).toHaveBeenCalledOnce();
+  });
 });

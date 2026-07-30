@@ -47,6 +47,20 @@ describe("PoolsPanel", () => {
     expect(screen.getAllByText("1,500").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("renders pools when provided via props without fetching", async () => {
+    const mockPools = [
+      { asset: "USDC", total: 1000, anchors: 2 },
+      { asset: "EURC", total: 500, anchors: 1 },
+    ];
+
+    render(<PoolsPanel pools={mockPools} />);
+
+    expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("EURC")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument(); // Assets stat card
+    expect(fetchPools).not.toHaveBeenCalled();
+  });
+
   it("focuses the search box when / is pressed", async () => {
     vi.mocked(fetchPools).mockResolvedValue([
       { asset: "USDC", total: 1000, anchors: 2 },
@@ -58,6 +72,20 @@ describe("PoolsPanel", () => {
     fireEvent.keyDown(document.body, { key: "/" });
 
     expect(document.activeElement).toBe(screen.getByLabelText("Search pools"));
+  });
+
+  it("advertises the / focus shortcut in the search placeholder", async () => {
+    vi.mocked(fetchPools).mockResolvedValue([
+      { asset: "USDC", total: 1000, anchors: 2 },
+    ]);
+
+    render(<PoolsPanel />);
+    await screen.findByText("USDC");
+
+    expect(screen.getByLabelText("Search pools")).toHaveAttribute(
+      "placeholder",
+      "Search pools… (/)",
+    );
   });
 
   it("filters pools via the search box", async () => {

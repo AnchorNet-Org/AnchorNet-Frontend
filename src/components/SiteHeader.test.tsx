@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SiteHeader } from "./SiteHeader";
 import { WalletProvider } from "./WalletProvider";
 import { ThemeProvider } from "./ThemeProvider";
+import { ToastProvider } from "./ToastProvider";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +32,11 @@ function renderHeader() {
   return render(
     <WalletProvider>
       <ThemeProvider>
-        <SiteHeader />
+        {/* Mirrors layout.tsx: the header (and its ConnectButton, which
+            raises wallet toasts) always renders inside ToastProvider. */}
+        <ToastProvider>
+          <SiteHeader />
+        </ToastProvider>
       </ThemeProvider>
     </WalletProvider>,
   );
@@ -213,6 +218,108 @@ describe("SiteHeader active route marking", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Reset to system theme button
+// ---------------------------------------------------------------------------
+
+describe("SiteHeader reset to system theme", () => {
+  it("does not show the reset button when isOverridden is false (no stored override)", async () => {
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the reset button when isOverridden is true (stored override exists)", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /use system theme/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("calls resetToSystem when clicked and reverts toggle label to follow system", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark"); // override → isOverridden = true
+    mockMediaQuery(false); // system is light
+    renderHeader();
+
+    // Wait for the override to be read and reset button to appear
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    // After reset, the toggle should reflect the system preference (light)
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+
+    // localStorage should be cleared
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    // Reset button should disappear
+    expect(
+      screen.queryByRole("button", { name: /use system theme/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the reset button after clicking it (isOverridden becomes false)", async () => {
+    localStorage.setItem(STORAGE_KEY, "light");
+    mockMediaQuery(true); // system is dark
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+
+    fireEvent.click(resetBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /use system theme/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("does not break the existing toggle when reset button is present", async () => {
+    localStorage.setItem(STORAGE_KEY, "dark");
+    mockMediaQuery(false);
+    renderHeader();
+
+    const resetBtn = await screen.findByRole("button", {
+      name: /use system theme/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    // Existing toggle should still work
+    const toggleBtn = screen.getByRole("button", {
+      name: /switch to light mode/i,
+    });
+    fireEvent.click(toggleBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /switch to dark mode/i }),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Theme toggle button rendering
 // ---------------------------------------------------------------------------
 
@@ -307,7 +414,9 @@ describe("SiteHeader theme toggle – toggling", () => {
     );
 
     // second click: dark → light
-    fireEvent.click(screen.getByRole("button", { name: /switch to light mode/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /switch to light mode/i }),
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: /switch to dark mode/i }),
@@ -331,9 +440,7 @@ describe("SiteHeader theme toggle – persistence", () => {
     });
     fireEvent.click(toggleBtn);
 
-    await waitFor(() =>
-      expect(localStorage.getItem(STORAGE_KEY)).toBe("dark"),
-    );
+    await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBe("dark"));
   });
 
   it("persists 'light' to localStorage after toggling from dark", async () => {
@@ -414,7 +521,9 @@ describe("SiteHeader theme toggle – accessibility", () => {
       name: /switch to (light|dark) mode/i,
     });
     expect(btn).toHaveAttribute("aria-label");
-    expect(btn.getAttribute("aria-label")).toMatch(/switch to (light|dark) mode/i);
+    expect(btn.getAttribute("aria-label")).toMatch(
+      /switch to (light|dark) mode/i,
+    );
   });
 
   it("aria-label updates after toggling", async () => {
@@ -429,8 +538,129 @@ describe("SiteHeader theme toggle – accessibility", () => {
     fireEvent.click(toggleBtn);
 
     await waitFor(() => {
-      const updated = screen.getByRole("button", { name: /switch to light mode/i });
+      const updated = screen.getByRole("button", {
+        name: /switch to light mode/i,
+      });
       expect(updated.getAttribute("aria-label")).toBe("Switch to light mode");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mobile navigation menu
+// ---------------------------------------------------------------------------
+
+describe("SiteHeader mobile menu", () => {
+  it("renders the mobile menu toggle button", () => {
+    renderHeader();
+    expect(
+      screen.getByRole("button", { name: /open navigation menu/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("toggles mobile menu open and closed when button is clicked", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    // Open mobile menu
+    fireEvent.click(toggleBtn);
+
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: /close navigation menu/i }),
+    ).toBeInTheDocument();
+
+    // All nav links are reachable in the open mobile menu
+    expect(
+      screen.getAllByRole("link", { name: "Home" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", { name: "Dashboard" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", { name: "Anchors" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("link", { name: "Settlements" }).length,
+    ).toBeGreaterThan(0);
+
+    // Close mobile menu by clicking toggle again
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes the mobile menu when Escape key is pressed and focuses toggle button", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+    expect(toggleBtn).toHaveFocus();
+  });
+
+  it("closes the mobile menu when clicking outside", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+
+    // Click outside on body
+    fireEvent.mouseDown(document.body);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("does not close the mobile menu when clicking inside the menu panel", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+
+    const mobileMenu = document.getElementById("mobile-nav-menu");
+    expect(mobileMenu).toBeInTheDocument();
+
+    fireEvent.mouseDown(mobileMenu!);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("closes the mobile menu when a navigation link inside the menu is clicked", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+
+    const dashboardLinks = screen.getAllByRole("link", { name: "Dashboard" });
+    const mobileDashboardLink = dashboardLinks[dashboardLinks.length - 1];
+    fireEvent.click(mobileDashboardLink);
+
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("does not close when mousedown happens on the toggle button itself", () => {
+    renderHeader();
+    const toggleBtn = screen.getByRole("button", {
+      name: /open navigation menu/i,
+    });
+
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.mouseDown(toggleBtn);
+    expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
   });
 });

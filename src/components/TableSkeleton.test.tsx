@@ -17,4 +17,11 @@ describe("TableSkeleton", () => {
     // One header row plus 3 body rows = 4 direct row containers.
     expect(status?.children).toHaveLength(4);
   });
+
+  it("applies reduced-motion classes for accessibility", () => {
+    render(<TableSkeleton />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveClass("animate-pulse");
+    expect(status).toHaveClass("motion-reduce:animate-none");
+  });
 });

@@ -10,6 +10,15 @@ import { Pool, Quote, QuoteRequest, ApiErrorBody } from "./types";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+let warnedMissingApiUrl = false;
+if (!process.env.NEXT_PUBLIC_API_URL && !warnedMissingApiUrl) {
+  warnedMissingApiUrl = true;
+  console.warn(
+    "NEXT_PUBLIC_API_URL is not set. Defaulting to http://localhost:3001. " +
+      "Copy .env.example to .env.local and set NEXT_PUBLIC_API_URL for your environment.",
+  );
+}
+
 // ── Shared query-string builder ─────────────────────────────────────────────
 
 /**
@@ -42,18 +51,7 @@ export function buildQueryParams(
   return `?${usp.toString()}`;
 }
 
-/**
- * Returns true when `err` is an AbortError — the rejection thrown by `fetch`
- * (and other Web APIs) when an `AbortSignal` fires.  Use this to distinguish
- * a deliberate cancellation from a genuine network/server failure so callers
- * never surface a user-facing error toast for a request the app itself
- * cancelled on purpose.
- */
-export function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === "AbortError";
-}
-
-/** Error thrown when the API responds with a non-2xx status. */
+/** Error thrown when the API response cannot be used by the client. */
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
@@ -80,6 +78,20 @@ async function parseError(res: Response): Promise<ApiRequestError> {
   }
 }
 
+async function parseSuccessfulJson<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    const requestId = res.headers?.get("x-request-id") ?? undefined;
+    throw new ApiRequestError(
+      res.status,
+      "INVALID_RESPONSE",
+      "The server returned an invalid response.",
+      requestId,
+    );
+  }
+}
+
 const MAX_RETRIES = 2;
 const INITIAL_BACKOFF_MS = 500;
 
@@ -91,6 +103,11 @@ const INITIAL_BACKOFF_MS = 500;
 export function retryDelayMs(attempt: number): number {
   const baseDelay = INITIAL_BACKOFF_MS * 2 ** attempt;
   return baseDelay + Math.random() * baseDelay;
+}
+
+/** True if `err` is a DOMException raised by an aborted fetch/signal. */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -140,7 +157,7 @@ export function setDefaultTimeout(ms: number) {
 
 function composeSignals(
   timeoutMs: number,
-  callerSignal?: AbortSignal,
+  callerSignal?: AbortSignal | null,
 ): { signal: AbortSignal; cleanup: () => void; hasTimedOut: () => boolean } {
   const controller = new AbortController();
   let timedOut = false;
@@ -178,7 +195,8 @@ function composeSignals(
 
 /**
  * Performs a JSON request against the API and returns the parsed body.
- * Throws {@link ApiRequestError} on a non-2xx response.
+ * Throws {@link ApiRequestError} on a non-2xx response or when a successful
+ * response cannot be parsed as JSON.
  * Retries up to {@link MAX_RETRIES} times on 5xx or network failures for idempotent requests.
  */
 export async function apiRequest<T>(
@@ -212,7 +230,7 @@ export async function apiRequest<T>(
     }
     cleanup();
 
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return await parseSuccessfulJson<T>(res);
 
     lastError = await parseError(res);
 
