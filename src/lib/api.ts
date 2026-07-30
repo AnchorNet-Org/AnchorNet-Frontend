@@ -42,6 +42,17 @@ export function buildQueryParams(
   return `?${usp.toString()}`;
 }
 
+/**
+ * Returns true when `err` is an AbortError — the rejection thrown by `fetch`
+ * (and other Web APIs) when an `AbortSignal` fires.  Use this to distinguish
+ * a deliberate cancellation from a genuine network/server failure so callers
+ * never surface a user-facing error toast for a request the app itself
+ * cancelled on purpose.
+ */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
 /** Error thrown when the API responds with a non-2xx status. */
 export class ApiRequestError extends Error {
   readonly status: number;
