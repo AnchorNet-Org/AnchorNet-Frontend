@@ -73,9 +73,6 @@ describe("SettlementDetail", () => {
 
     // Expect the distinct not‑found text
     expect(await screen.findByText(/settlement not found/i)).toBeInTheDocument();
-    const backLink = screen.getByRole('link', { name: /← back to settlements/i });
-    expect(backLink).toBeInTheDocument();
-    expect(backLink).toHaveAttribute('href', '/settlements');
   });
 
 

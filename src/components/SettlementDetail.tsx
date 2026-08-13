@@ -62,12 +62,6 @@ export function SettlementDetail({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/settlements"
-        className="text-sm text-zinc-400 hover:text-zinc-100"
-      >
-        ← Back to settlements
-      </Link>
       <Card>
         {state.status === "loading" ? (
           <Spinner label="Loading settlement…" />

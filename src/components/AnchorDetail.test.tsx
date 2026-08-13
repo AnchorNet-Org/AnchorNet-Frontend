@@ -71,9 +71,6 @@ describe("AnchorDetail", () => {
 
     // Expect the distinct not‑found text
     expect(await screen.findByText(/anchor not found/i)).toBeInTheDocument();
-    const backLink = screen.getByRole("link", { name: /← back to anchors/i });
-    expect(backLink).toBeInTheDocument();
-    expect(backLink).toHaveAttribute("href", "/anchors");
   });
 
   it("hides the deactivate action for an already-inactive anchor", async () => {

@@ -17,6 +17,11 @@ click handlers rather than from WalletProvider, so a cross-tab
 storage sync updates the button without notifying a user who didn't
 take the action. The button label and the disconnect confirmation
 dialog are unchanged.
+Changed
+UX: removed the standalone "← Back to anchors" / "← Back to settlements"
+links from the anchor and settlement detail pages; the Breadcrumb
+rendered above each detail component is now the single back-navigation
+affordance on those pages.
 Fixed
 Build: restored declarations lost in an earlier merge that broke
 next build — AnchorsPanel's URL-backed sort state (sortParam,
