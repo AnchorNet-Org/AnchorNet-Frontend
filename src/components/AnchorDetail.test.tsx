@@ -153,8 +153,9 @@ describe("AnchorDetail", () => {
   });
 
   it("deactivates an anchor without flashing a loading spinner", async () => {
-    let resolveFetch: (value: any) => void = () => {};
-    const fetchPromise = new Promise((resolve) => {
+    type FetchedAnchor = Awaited<ReturnType<typeof fetchAnchor>>;
+    let resolveFetch: (value: FetchedAnchor) => void = () => {};
+    const fetchPromise = new Promise<FetchedAnchor>((resolve) => {
       resolveFetch = resolve;
     });
 
@@ -165,7 +166,7 @@ describe("AnchorDetail", () => {
         registeredAt: "",
         active: true,
       })
-      .mockReturnValueOnce(fetchPromise as any);
+      .mockReturnValueOnce(fetchPromise);
 
     vi.mocked(deregisterAnchor).mockResolvedValue({
       id: "anchorA",

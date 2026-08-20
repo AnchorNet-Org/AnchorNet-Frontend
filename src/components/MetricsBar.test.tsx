@@ -18,7 +18,7 @@ describe('MetricsBar', () => {
   });
 
   it('shows a stable four-card skeleton grid before metrics resolve', () => {
-    (useAsync as any).mockReturnValue({
+    vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
     });
@@ -31,7 +31,7 @@ describe('MetricsBar', () => {
 
   it('keeps the auto-refresh interval on schedule', () => {
     const mockReload = vi.fn();
-    (useAsync as any).mockReturnValue({
+    vi.mocked(useAsync).mockReturnValue({
       state: { status: 'ready', data: { activeAnchors: 50, anchors: 100, pools: 10, totalLiquidity: 500000, settlements: 1000 } },
       refresh: mockReload,
     });
@@ -44,7 +44,7 @@ describe('MetricsBar', () => {
 
   it('handles unmount mid-refresh without warnings', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    (useAsync as any).mockReturnValue({
+    vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
     });
@@ -61,7 +61,7 @@ describe('MetricsBar', () => {
 
   it('does not update state after unmount when interval-triggered refresh resolves', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    (useAsync as any).mockReturnValue({
+    vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
     });

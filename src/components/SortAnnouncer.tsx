@@ -32,6 +32,11 @@ export function SortAnnouncer<K extends string>({
     }
     prevSortRef.current = sort;
 
+    // The announcement must change for the aria-live region to re-announce, and
+    // it must not fire on mount — so it cannot be derived during render. Both
+    // early returns above mean this runs only on a genuine sort change, so it
+    // cannot cascade.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (sort) {
       const label = labels[sort.key] || String(sort.key);
       const direction = sort.direction === "asc" ? "ascending" : "descending";
@@ -39,6 +44,7 @@ export function SortAnnouncer<K extends string>({
     } else {
       setAnnouncement("Sorting cleared");
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [sort, labels]);
 
   return (

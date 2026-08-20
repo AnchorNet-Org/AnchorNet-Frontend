@@ -109,15 +109,6 @@ export function AnchorsPanel() {
   const [rawStatus, setStatus] = useQueryState("status", "all");
   const filter: StatusFilter = isStatusFilter(rawStatus) ? rawStatus : "all";
 
-  const [sortParam, setSortParam] = useQueryState("sort", "");
-  const [dirParam, setDirParam] = useQueryState("dir", "");
-
-  const initialSort = useMemo<SortState<SortKey> | null>(() => {
-    if (!sortParam || !VALID_SORT_KEYS.has(sortParam)) return null;
-    const direction: SortDirection = dirParam === "desc" ? "desc" : "asc";
-    return { key: sortParam as SortKey, direction };
-  }, [sortParam, dirParam]);
-
   // When the URL carries an invalid status value, correct it to the effective
   // fallback ("all") so the address bar always reflects what is displayed.
   useEffect(() => {
