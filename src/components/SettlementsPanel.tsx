@@ -15,6 +15,7 @@ import { pluralize } from "@/lib/format";
 import { matchesQuery } from "@/lib/search";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useToast } from "@/hooks/useToast";
+import { apiErrorMessage } from "@/lib/toast";
 import { useFocusShortcut } from "@/hooks/useFocusShortcut";
 import { useQueryState } from "@/hooks/useQueryState";
 import { Card } from "./Card";
@@ -68,7 +69,7 @@ export function SettlementsPanel() {
     () => new Set(),
   );
   const [exporting, setExporting] = useState(false);
-  const { notify } = useToast();
+  const { notify, notifyError } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   useFocusShortcut("/", searchRef);
 
@@ -110,9 +111,11 @@ export function SettlementsPanel() {
       )
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
+        const message = apiErrorMessage(err);
+        if (message === null) return;
         setState({
           status: "error",
-          message: err instanceof Error ? err.message : "Request failed",
+          message,
         });
       });
     return () => controller.abort();
@@ -158,9 +161,7 @@ export function SettlementsPanel() {
         `Loaded ${pluralize(next.settlements.length, "more settlement")}`,
       );
     } catch (err: unknown) {
-      setMoreError(
-        err instanceof Error ? err.message : "Failed to load more settlements",
-      );
+      setMoreError(apiErrorMessage(err, "Failed to load more settlements."));
     } finally {
       setLoadingMore(false);
     }
@@ -220,7 +221,7 @@ export function SettlementsPanel() {
             : previous,
         );
       }
-      notify("error", err instanceof Error ? err.message : "Request failed");
+      notifyError(err);
     } finally {
       setPendingSettlementIds((prev) => {
         const next = new Set(prev);
@@ -245,7 +246,7 @@ export function SettlementsPanel() {
       void refreshPools().catch(() => {});
       return true;
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Request failed");
+      notifyError(err);
       return false;
     } finally {
       setPending(false);
@@ -283,7 +284,7 @@ export function SettlementsPanel() {
       URL.revokeObjectURL(url);
       notify("success", "Exported settlements as CSV.");
     } catch (err: unknown) {
-      notify("error", err instanceof Error ? err.message : "Failed to export CSV");
+      notifyError(err, "Failed to export CSV.");
     } finally {
       setExporting(false);
     }

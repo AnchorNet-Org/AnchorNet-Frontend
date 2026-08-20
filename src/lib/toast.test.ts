@@ -1,9 +1,73 @@
 import { describe, it, expect } from "vitest";
-import { pushToast, dismissToast, MAX_TOASTS, Toast } from "./toast";
+import {
+  apiErrorMessage,
+  pushToast,
+  dismissToast,
+  MAX_TOASTS,
+  Toast,
+} from "./toast";
+import { ApiRequestError } from "./api";
 
 function toast(id: number, message = "hello"): Toast {
   return { id, kind: "success", message };
 }
+
+describe("apiErrorMessage", () => {
+  it("suppresses deliberate aborts", () => {
+    expect(
+      apiErrorMessage(new DOMException("aborted", "AbortError")),
+    ).toBeNull();
+  });
+
+  it.each([
+    ["timeout", "The request timed out. Try again."],
+    [
+      "network",
+      "Unable to reach the server. Check your connection and try again.",
+    ],
+    ["not_found", "The requested resource was not found."],
+    ["invalid_response", "The server returned an invalid response."],
+  ] as const)("maps %s failures to distinct user copy", (kind, message) => {
+    const error = new ApiRequestError(undefined, "TEST", "internal", undefined, {
+      kind,
+    });
+    expect(apiErrorMessage(error)).toBe(message);
+  });
+
+  it("uses the API message for client failures", () => {
+    const error = new ApiRequestError(422, "VALIDATION", "Amount is invalid");
+    expect(apiErrorMessage(error)).toBe("Amount is invalid");
+  });
+
+  it("uses safe server copy and includes an available request reference", () => {
+    const error = new ApiRequestError(
+      503,
+      "UNAVAILABLE",
+      "database host internal detail",
+      "req-123",
+    );
+    expect(apiErrorMessage(error)).toBe(
+      "The service is temporarily unavailable. Try again. Reference: req-123.",
+    );
+  });
+
+  it("uses safe server copy when no request reference is available", () => {
+    const error = new ApiRequestError(503, "UNAVAILABLE", "internal detail");
+    expect(apiErrorMessage(error)).toBe(
+      "The service is temporarily unavailable. Try again.",
+    );
+  });
+
+  it("preserves an Error message for an unclassified failure", () => {
+    expect(apiErrorMessage(new Error("Network error"), "Export failed.")).toBe(
+      "Network error",
+    );
+  });
+
+  it("uses the supplied fallback for a non-Error failure", () => {
+    expect(apiErrorMessage("failure", "Export failed.")).toBe("Export failed.");
+  });
+});
 
 describe("pushToast", () => {
   it("appends a toast to an empty stack", () => {

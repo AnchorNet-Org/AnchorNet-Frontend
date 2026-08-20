@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Quote } from "@/lib/types";
 import { ApiRequestError, fetchPools, requestQuote } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/toast";
 import { feeInBps, formatAmount } from "@/lib/format";
 import { Card } from "./Card";
 import { CopyButton } from "./CopyButton";
@@ -71,9 +72,11 @@ export function QuoteForm({ knownAssets }: QuoteFormProps = {}) {
       const message =
         err instanceof ApiRequestError && err.status === 429
           ? "You're quoting too quickly — try again in a moment."
-          : err instanceof Error
-            ? err.message
-            : "Quote failed.";
+          : apiErrorMessage(err, "Quote failed.");
+      if (message === null) {
+        setResult({ status: "idle" });
+        return;
+      }
       setResult({ status: "error", message });
     }
   }
