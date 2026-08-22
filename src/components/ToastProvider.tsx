@@ -152,6 +152,7 @@ function ToastItem({
     <div
       role="status"
       aria-live="polite"
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Required for keyboard users to pause the auto-dismiss timer without focusing the dismiss button
       tabIndex={0}
       onMouseEnter={pauseTimer}
       onMouseLeave={startTimer}

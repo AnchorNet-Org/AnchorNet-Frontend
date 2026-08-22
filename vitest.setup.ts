@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, vi, expect } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { toHaveNoViolations } from "jest-axe";
+
+expect.extend(toHaveNoViolations);
 
 // Suppress the NEXT_PUBLIC_API_URL missing warning that fires as a module
 // side-effect when api.ts is imported in tests.
