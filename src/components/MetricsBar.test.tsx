@@ -21,7 +21,9 @@ describe('MetricsBar', () => {
     vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
-    });
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     render(<MetricsBar />);
     expect(screen.getByText('Active anchors')).toBeInTheDocument();
     expect(screen.getByText('Pools')).toBeInTheDocument();
@@ -32,9 +34,11 @@ describe('MetricsBar', () => {
   it('keeps the auto-refresh interval on schedule', () => {
     const mockReload = vi.fn();
     vi.mocked(useAsync).mockReturnValue({
-      state: { status: 'ready', data: { activeAnchors: 50, anchors: 100, pools: 10, totalLiquidity: 500000, settlements: 1000 } },
+      state: { status: 'ready', data: { activeAnchors: 50, anchors: 100, pools: 10, totalLiquidity: 500000, settlements: 1000, pendingSettlements: 0 } },
       refresh: mockReload,
-    });
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     render(<MetricsBar />);
     act(() => {
       vi.advanceTimersByTime(30000);
@@ -47,7 +51,9 @@ describe('MetricsBar', () => {
     vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
-    });
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     const { unmount } = render(<MetricsBar />);
     act(() => {
       unmount();
@@ -64,7 +70,9 @@ describe('MetricsBar', () => {
     vi.mocked(useAsync).mockReturnValue({
       state: { status: 'loading' },
       refresh: vi.fn(),
-    });
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     const { unmount } = render(<MetricsBar />);
     act(() => {
       vi.advanceTimersByTime(30000);
