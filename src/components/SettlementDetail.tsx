@@ -34,7 +34,7 @@ export function SettlementDetail({
     load,
     initialData ? { status: "ready", data: initialData } : undefined,
   );
-  const { notify } = useToast();
+  const { notify, notifyError } = useToast();
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -54,7 +54,7 @@ export function SettlementDetail({
       await refresh();
     } catch (err: unknown) {
       mutate(previousState);
-      notify("error", err instanceof Error ? err.message : "Request failed");
+      notifyError(err);
     } finally {
       setPending(false);
     }

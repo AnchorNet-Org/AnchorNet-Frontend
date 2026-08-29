@@ -22,6 +22,10 @@ Build: restored declarations lost in an earlier merge that broke
 next build — AnchorsPanel's URL-backed sort state (sortParam,
 dirParam, initialSort, plus use of the already-computed
 debouncedQuery) and PoolsPanel's PoolsPanelProps interface.
+- **API resilience:** bounded retries now follow an explicit idempotency and
+  transient-status policy, keep abort/timeout protection active through body
+  consumption, and surface classified failures through the existing reporter
+  and toast paths without displaying deliberate cancellations.
 [0.9.1]
 Fixed
 UX: SettlementForm's asset field no longer defaults to a hardcoded

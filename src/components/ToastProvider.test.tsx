@@ -4,6 +4,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ToastProvider } from "./ToastProvider";
 import { useToast } from "@/hooks/useToast";
 import { MAX_TOASTS, type Toast } from "@/lib/toast";
+import { ApiRequestError } from "@/lib/api";
 
 /** Fires a single notification on mount via the real toast context. */
 function Trigger({
@@ -30,6 +31,14 @@ function BurstTrigger({ count }: { count: number }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return null;
+}
+
+function ErrorTrigger({ error }: { error: unknown }) {
+  const { notifyError } = useToast();
+  useEffect(() => {
+    notifyError(error);
+  }, [error, notifyError]);
   return null;
 }
 
@@ -79,6 +88,48 @@ describe("ToastProvider", () => {
     );
 
     expect(screen.getByText("Saved successfully")).toBeInTheDocument();
+  });
+
+  it("does not surface or report a deliberately aborted request", () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    render(
+      <ToastProvider>
+        <ErrorTrigger error={new DOMException("aborted", "AbortError")} />
+      </ToastProvider>,
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("reports a classified failure and renders its user-facing message", () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const error = new ApiRequestError(
+      undefined,
+      "TIMEOUT",
+      "internal timeout detail",
+      undefined,
+      { kind: "timeout", attempts: 3 },
+    );
+
+    render(
+      <ToastProvider>
+        <ErrorTrigger error={error} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByText("The request timed out. Try again.")).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("kind=timeout"),
+      error,
+    );
+    consoleErrorSpy.mockRestore();
   });
 
   it("dismisses a toast when its close button is clicked", () => {

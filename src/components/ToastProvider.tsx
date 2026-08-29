@@ -8,12 +8,22 @@ import {
   useRef,
   useState,
 } from "react";
-import { Toast, MAX_TOASTS, pushToast, dismissToast } from "@/lib/toast";
+import {
+  Toast,
+  MAX_TOASTS,
+  apiErrorMessage,
+  pushToast,
+  dismissToast,
+} from "@/lib/toast";
+import { reportError } from "@/lib/errorReporter";
+import { classifyApiError } from "@/lib/api";
 
 export interface ToastContextValue {
   toasts: Toast[];
   /** Queues a toast notification for display. */
   notify: (kind: Toast["kind"], message: string) => void;
+  /** Reports and displays an API failure; deliberate aborts are ignored. */
+  notifyError: (error: unknown, fallback?: string) => string | null;
   /** Dismisses a toast before its auto-dismiss timer fires. */
   dismiss: (id: number) => void;
 }
@@ -62,9 +72,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const notifyError = useCallback(
+    (error: unknown, fallback?: string) => {
+      const message = apiErrorMessage(error, fallback);
+      if (message === null) return null;
+
+      const kind = classifyApiError(error);
+      if (
+        kind === "timeout" ||
+        kind === "network" ||
+        kind === "server" ||
+        kind === "invalid_response"
+      ) {
+        reportError(error, { route: window.location.pathname });
+      }
+      notify("error", message);
+      return message;
+    },
+    [notify],
+  );
+
   return (
     <ToastContext.Provider
-      value={{ toasts: stack.toasts, notify, dismiss }}
+      value={{ toasts: stack.toasts, notify, notifyError, dismiss }}
     >
       {children}
       <ToastViewport

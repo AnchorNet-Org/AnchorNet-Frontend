@@ -64,7 +64,7 @@ function filterAnchors(anchors: Anchor[], filter: StatusFilter): Anchor[] {
 export function AnchorsPanel() {
   const load = useCallback((signal: AbortSignal) => fetchAnchors(signal), []);
   const { state, reload } = useAsync(load);
-  const { notify } = useToast();
+  const { notify, notifyError } = useToast();
   const [pending, setPending] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [pendingDeregisterId, setPendingDeregisterId] = useState<string | null>(
@@ -162,16 +162,14 @@ export function AnchorsPanel() {
       reload();
       return true;
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Registration failed";
-      notify("error", message);
+      const message = notifyError(err, "Registration failed.");
       // Only surface id-specific failures (e.g. duplicate/conflict) inline on the
       // AnchorForm id field. Generic failures (network, 5xx, etc.) stay as toasts.
       if (
         err instanceof ApiRequestError &&
         (err.status === 409 || err.code === "CONFLICT")
       ) {
-        setServerError(message);
+        setServerError(message ?? "Registration failed.");
       }
       return false;
     } finally {
@@ -192,10 +190,7 @@ export function AnchorsPanel() {
       notify("success", `Deactivated anchor "${id}".`);
       reload();
     } catch (err: unknown) {
-      notify(
-        "error",
-        err instanceof Error ? err.message : "Deactivation failed",
-      );
+      notifyError(err, "Deactivation failed.");
     } finally {
       deregisteringRef.current.delete(id);
       setDeregisteringIds((prev) => {

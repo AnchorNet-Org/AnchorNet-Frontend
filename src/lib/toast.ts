@@ -2,6 +2,8 @@
  * Pure state helpers for the app-wide toast notification stack.
  */
 
+import { ApiRequestError, classifyApiError } from "./api";
+
 /** A single toast notification. */
 export interface Toast {
   id: number;
@@ -11,6 +13,40 @@ export interface Toast {
 
 /** Maximum number of toasts visible at once; older ones are dropped. */
 export const MAX_TOASTS = 3;
+
+/**
+ * Converts a classified API failure into safe user-facing copy.
+ * Deliberate cancellation returns `null` so callers cannot surface it as an
+ * error toast during unmount or request replacement.
+ */
+export function apiErrorMessage(
+  error: unknown,
+  fallback = "Request failed.",
+): string | null {
+  switch (classifyApiError(error)) {
+    case "aborted":
+      return null;
+    case "timeout":
+      return "The request timed out. Try again.";
+    case "network":
+      return "Unable to reach the server. Check your connection and try again.";
+    case "not_found":
+      return "The requested resource was not found.";
+    case "invalid_response":
+      return "The server returned an invalid response.";
+    case "server": {
+      const reference =
+        error instanceof ApiRequestError && error.requestId
+          ? ` Reference: ${error.requestId}.`
+          : "";
+      return `The service is temporarily unavailable. Try again.${reference}`;
+    }
+    case "client":
+      return error instanceof Error && error.message ? error.message : fallback;
+    case "unknown":
+      return error instanceof Error && error.message ? error.message : fallback;
+  }
+}
 
 /** Result of pushing a toast onto the stack. */
 export interface PushToastResult {

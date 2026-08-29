@@ -126,6 +126,20 @@ describe("QuoteForm", () => {
     expect(await screen.findByText(/quote failed/i)).toBeInTheDocument();
   });
 
+  it("does not surface a deliberately aborted quote as a user-visible error", async () => {
+    vi.mocked(requestQuote).mockClear();
+    vi.mocked(requestQuote).mockRejectedValue(
+      new DOMException("signal is aborted", "AbortError"),
+    );
+
+    render(<QuoteForm />);
+    fireEvent.click(screen.getByRole("button", { name: /get quote/i }));
+
+    await waitFor(() => expect(requestQuote).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/quote failed/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /get quote/i })).toBeEnabled();
+  });
+
   it("renders datalist options for each knownAssets entry", () => {
     render(<QuoteForm knownAssets={["USDC", "EURC", "XLM"]} />);
 
