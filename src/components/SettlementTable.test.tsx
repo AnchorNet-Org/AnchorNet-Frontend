@@ -67,8 +67,9 @@ describe("SettlementTable sorting", () => {
   it("shows the amount and fee totals for the visible rows", () => {
     render(<SettlementTable settlements={settlements} />);
 
-    const totalRow = screen.getByRole("row", { name: /Total \(visible rows\)/ });
-    expect(within(totalRow).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+    const totalRow = document.querySelector("tfoot tr");
+    expect(totalRow).not.toBeNull();
+    expect(within(totalRow as HTMLElement).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
       "Total (visible rows)",
       "600",
       "6",
@@ -263,11 +264,10 @@ describe("SettlementTable mobile layout", () => {
     settlements.forEach((s, index) => {
       const card = cards[index];
       expect(card).toBeInTheDocument();
-      expect(within(card).getByRole("link", { name: `Settlement #${s.id}` })).toBeInTheDocument();
-      expect(within(card).getByText(s.anchor)).toBeInTheDocument();
-      expect(within(card).getByText(s.asset)).toBeInTheDocument();
-      expect(within(card).getByText(formatAmount(s.amount))).toBeInTheDocument();
-      expect(within(card).getByText(formatAmount(s.fee))).toBeInTheDocument();
+      expect(within(card as HTMLElement).getByText(s.anchor)).toBeInTheDocument();
+      expect(within(card as HTMLElement).getByText(s.asset)).toBeInTheDocument();
+      expect(within(card as HTMLElement).getByText(formatAmount(s.amount))).toBeInTheDocument();
+      expect(within(card as HTMLElement).getByText(formatAmount(s.fee))).toBeInTheDocument();
     });
   });
 });

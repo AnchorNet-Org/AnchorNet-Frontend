@@ -11,7 +11,8 @@
   "start": "next start",
   "lint": "eslint .",
   "test": "cross-env TZ=America/Los_Angeles vitest run",
-  "test:coverage": "cross-env TZ=America/Los_Angeles vitest run --coverage"
+  "test:coverage": "cross-env TZ=America/Los_Angeles vitest run --coverage",
+  "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "16.1.6",

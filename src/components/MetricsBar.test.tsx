@@ -38,7 +38,12 @@ describe('MetricsBar', () => {
   });
 
   it('shows a stable four-card skeleton grid before metrics resolve', () => {
-    vi.mocked(useAsync).mockReturnValue(mockUseAsync());
+    vi.mocked(useAsync).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     render(<MetricsBar />);
     expect(screen.getByText('Active anchors')).toBeInTheDocument();
     expect(screen.getByText('Pools')).toBeInTheDocument();
@@ -47,21 +52,13 @@ describe('MetricsBar', () => {
   });
 
   it('keeps the auto-refresh interval on schedule', () => {
-    const mockRefresh = vi.fn(() => Promise.resolve());
-    vi.mocked(useAsync).mockReturnValue(mockUseAsync({
-      state: {
-        status: 'ready',
-        data: {
-          activeAnchors: 50,
-          anchors: 100,
-          pools: 10,
-          totalLiquidity: 500000,
-          settlements: 1000,
-          pendingSettlements: 4,
-        },
-      },
-      refresh: mockRefresh,
-    }));
+    const mockReload = vi.fn();
+    vi.mocked(useAsync).mockReturnValue({
+      state: { status: 'ready', data: { activeAnchors: 50, anchors: 100, pools: 10, totalLiquidity: 500000, settlements: 1000, pendingSettlements: 0 } },
+      refresh: mockReload,
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     render(<MetricsBar />);
     act(() => {
       vi.advanceTimersByTime(30000);
@@ -71,7 +68,12 @@ describe('MetricsBar', () => {
 
   it('handles unmount mid-refresh without warnings', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.mocked(useAsync).mockReturnValue(mockUseAsync());
+    vi.mocked(useAsync).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     const { unmount } = render(<MetricsBar />);
     act(() => {
       unmount();
@@ -85,7 +87,12 @@ describe('MetricsBar', () => {
 
   it('does not update state after unmount when interval-triggered refresh resolves', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.mocked(useAsync).mockReturnValue(mockUseAsync());
+    vi.mocked(useAsync).mockReturnValue({
+      state: { status: 'loading' },
+      refresh: vi.fn(),
+      reload: vi.fn(),
+      mutate: vi.fn(),
+    } as any);
     const { unmount } = render(<MetricsBar />);
     act(() => {
       vi.advanceTimersByTime(30000);
